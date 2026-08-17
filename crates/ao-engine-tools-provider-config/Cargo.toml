@@ -1,0 +1,31 @@
+[package]
+name = "ao-engine-tools-provider-config"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[dependencies]
+ao-protocol = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+toml_edit = { workspace = true }
+thiserror = { workspace = true }
+sha2 = { workspace = true }
+chrono = { workspace = true }
+keyring = { workspace = true }
+tracing = { workspace = true }
+reqwest = { workspace = true, features = ["rustls-tls", "json"] }
+
+# Used directly (not just transitively through `keyring`'s apple-native
+# backend) to disable macOS keychain interactive-authorization prompts
+# process-wide — see `disable_interactive_keychain_prompts` in
+# `secret_vault.rs`. Target-gated the same way `keyring` gates it
+# internally, so this stays inert on Linux/Windows.
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "2"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true }
+wiremock = "0.6"

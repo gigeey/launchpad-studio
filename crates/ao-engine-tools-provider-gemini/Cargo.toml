@@ -1,0 +1,24 @@
+[package]
+name = "ao-engine-tools-provider-gemini"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[dependencies]
+ao-engine-tools-runner = { workspace = true }
+ao-engine-tools-provider-config = { workspace = true }
+ao-protocol = { workspace = true }
+reqwest = { workspace = true, features = ["rustls-tls", "stream", "json"] }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+futures-util = { workspace = true }
+
+[dev-dependencies]
+wiremock = "0.6"
+tokio = { workspace = true, features = ["rt-multi-thread"] }

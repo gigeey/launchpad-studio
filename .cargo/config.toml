@@ -1,0 +1,23 @@
+# macOS dev-signing convenience. Inert unless you opt in.
+#
+# `cargo run` (and therefore `tauri dev`) executes the binary it just built
+# through dev/dev-codesign-runner.sh rather than running it directly. That
+# script re-signs the binary with a stable identity so macOS Keychain "Always
+# Allow" grants survive a rebuild — this app stores provider API keys in the
+# Keychain, and an ad-hoc signature changes hash on every build, so without
+# this every rebuild re-triggers every keychain prompt.
+#
+# The runner does nothing but exec the binary unless you set
+# LAUNCHPAD_DEV_SIGNING_IDENTITY. If you have not set it, this file has no
+# observable effect beyond one extra exec.
+#
+# This applies to `cargo run` and `cargo test` only. `cargo build` never
+# applies a target runner, so release builds and notarization are unaffected.
+#
+# See dev/dev-codesign-runner.sh for the full rationale and how to opt in.
+
+[target.aarch64-apple-darwin]
+runner = "dev/dev-codesign-runner.sh"
+
+[target.x86_64-apple-darwin]
+runner = "dev/dev-codesign-runner.sh"

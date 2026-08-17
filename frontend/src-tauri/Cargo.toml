@@ -1,0 +1,50 @@
+[package]
+name = "launchpad-studio"
+version = "0.17.2"
+description = "Launchpad Studio"
+authors = ["Gigeey"]
+edition = "2021"
+license.workspace = true
+
+[lib]
+name = "launchpad_frontend_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+ao-server = { path = "../../crates/ao-server" }
+ao-engine = { path = "../../crates/ao-engine" }
+ao-protocol = { path = "../../crates/ao-protocol" }
+ao-process = { workspace = true }
+tauri = { version = "2", features = ["macos-private-api", "devtools"] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri-plugin-fs = "2.4.5"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+tauri-plugin-notification = "2"
+rfd = "0.16"
+tokio = { version = "1", features = ["full"] }
+axum = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+window-vibrancy = "0.6.0"
+objc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints.rust]
+# `objc` 0.2's `sel_impl!` macro (reached here via `msg_send!`) still guards
+# code with the obsolete `#[cfg(feature = "cargo-clippy")]`. A cfg written
+# inside a macro is checked against the crate the macro expands *into*, so
+# rustc reports 23 `unexpected_cfgs` warnings against this crate for code we
+# do not own. objc 0.2.7 is the final release, so `cargo update` cannot fix
+# it. Declaring the value as expected silences those without disabling the
+# lint, which still catches misspelled features in our own code.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("cargo-clippy"))'] }
+

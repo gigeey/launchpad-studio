@@ -1,0 +1,96 @@
+name: cla
+
+# Contributor License Agreement enforcement. The logic lives in .github/cla.js;
+# this file only wires it to two events and grants each one the narrowest set of
+# permissions that works.
+#
+# BRANCH PROTECTION — READ THIS BEFORE RELYING ON THE CHECK
+# ---------------------------------------------------------
+# The merge gate is the commit status named `cla`, NOT either job below. Both
+# jobs exit 0 whether or not the CLA is signed; they record the verdict as that
+# status. This is what lets a signature posted in a comment turn the pull request
+# green without re-running the check.
+#
+# So in Settings → Branches, the required status check to add is `cla`. Adding
+# `check` or `sign` instead produces a rule that is always satisfied — a gate
+# that looks configured and enforces nothing. Without any rule at all, a
+# maintainer can merge straight past a red status, which is the failure mode a
+# repository with one maintainer actually has.
+#
+# WHY pull_request_target
+# -----------------------
+# `pull_request` gives a fork's pull request a read-only token, which cannot post
+# a comment or write a status. `pull_request_target` runs in the base repository
+# with a writable token — and is dangerous for exactly that reason, because it is
+# routinely combined with checking out and executing the pull request's code.
+#
+# Neither job does that. The checkout steps below take the base branch, and the
+# only thing executed is .github/cla.js from that branch. Both jobs likewise use
+# the workflow file as it exists on the default branch, so a pull request cannot
+# alter its own CLA check.
+#
+# Do not add a `ref:` to either checkout, and do not add a build, install, or
+# test step to this workflow. Any of those would run contributor-supplied code
+# with a write token.
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+  issue_comment:
+    types: [created]
+
+jobs:
+  # Evaluates the pull request and reports the `cla` status.
+  check:
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # read signatures/version1/cla.json
+      pull-requests: write # post or update the reminder comment
+      statuses: write # report the `cla` status
+    steps:
+      - uses: actions/checkout@v4 # base branch — see the note above; never add `ref:`
+
+      - name: Check the CLA
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const cla = require(`${process.env.GITHUB_WORKSPACE}/.github/cla.js`)
+            await cla.run({ github, context, core })
+
+  # Records a signature posted as a comment, then re-reports the status.
+  #
+  # This starts a runner for every comment on every pull request and returns
+  # immediately for the ones that are not signatures. The obvious saving —
+  # adding `contains(github.event.comment.body, '...')` to the condition below —
+  # is deliberately not taken. Expression `contains()` is case-sensitive and
+  # cannot strip quoted text, so it would reject signatures that cla.js accepts,
+  # and the real rule for what counts as a signature would end up split across
+  # two files that disagree. One definition, in cla.js, is worth more than the
+  # few seconds of runner time.
+  sign:
+    if: github.event_name == 'issue_comment' && github.event.issue.pull_request != null
+    runs-on: ubuntu-latest
+
+    # Signatures all land in one file, so two people signing at the same moment
+    # would collide on the write. Serialise repository-wide. `cancel-in-progress`
+    # must stay false: cancelling a queued run here would silently discard
+    # somebody's signature.
+    concurrency:
+      group: cla-signature-file
+      cancel-in-progress: false
+
+    permissions:
+      contents: write # append to signatures/version1/cla.json
+      pull-requests: write # post or update the comment
+      statuses: write # re-report the `cla` status
+
+    steps:
+      - uses: actions/checkout@v4 # default branch — see the note above; never add `ref:`
+
+      - name: Record a CLA signature
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const cla = require(`${process.env.GITHUB_WORKSPACE}/.github/cla.js`)
+            await cla.run({ github, context, core })

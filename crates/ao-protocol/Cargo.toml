@@ -1,0 +1,34 @@
+[package]
+name = "ao-protocol"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+thiserror = { workspace = true }
+dirs = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+regex = { workspace = true }
+sha2 = { workspace = true }
+unicode-normalization = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[features]
+# Exposes a thread-local override for `workspaces::registry_path()` so
+# downstream crates' tests can drive real registry-reading/-writing code
+# paths (route handlers, not just the pure `_from_path` helpers below them)
+# against a temp file instead of the real `~/.launchpad_studio/workspaces.json`.
+# See `workspaces::override_registry_path_for_test` for why this is a cargo
+# feature rather than bare `#[cfg(test)]`: `#[cfg(test)]` items don't survive
+# across a crate boundary, so `ao-server`'s tests couldn't see them.
+# Enabled only via `[dev-dependencies]` in downstream `Cargo.toml`s (see
+# `ao-server/Cargo.toml`), so it never reaches a release binary.
+test-util = []

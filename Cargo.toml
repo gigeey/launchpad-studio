@@ -1,0 +1,88 @@
+[workspace]
+resolver = "2"
+members = [
+    "frontend/src-tauri",
+    "crates/ao-protocol",
+    "crates/ao-persistence",
+    "crates/ao-process",
+    "crates/ao-normalizer",
+    "crates/ao-engine",
+    "crates/ao-engine-tools-core",
+    "crates/ao-engine-tools-io",
+    "crates/ao-engine-tools-engine",
+    "crates/ao-engine-tools-runner",
+    "crates/ao-server",
+    "crates/ao-engine-tools-provider-config",
+    "crates/ao-engine-tools-provider-anthropic",
+    "crates/ao-engine-tools-provider-openai",
+    "crates/ao-engine-tools-provider-gemini",
+    "crates/ao-engine-tools-cli",
+    "crates/ao-mcp-bridge",
+    "crates/ao-search-index",
+]
+
+# Shared package metadata. Member crates opt in with `license.workspace = true`
+# so the licence is declared once and cannot drift between crates.
+[workspace.package]
+license = "Apache-2.0"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+tokio = { version = "1", features = ["full"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+async-trait = "0.1"
+axum = { version = "0.8", features = ["macros", "multipart"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "timeout"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+dirs = "6"
+futures-util = "0.3"
+regex = "1"
+unicode-normalization = "0.1"
+tokio-util = "0.7"
+libc = "0.2"
+sha2 = "0.10"
+hmac = "0.12"
+base64 = "0.21"
+# Platform-native credential backends MUST be enabled explicitly — with no
+# feature flags keyring 3 silently compiles only its in-memory mock keystore,
+# whose per-Entry isolation makes set() succeed while a subsequent get() on a
+# fresh Entry returns NoEntry (tokens never actually persist). Each backend dep
+# is target-gated inside keyring, so this only compiles security-framework on
+# macOS, windows-sys on Windows, and dbus/keyutils on Linux.
+keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native-sync-persistent", "crypto-rust"] }
+ao-protocol = { path = "crates/ao-protocol" }
+ao-persistence = { path = "crates/ao-persistence" }
+ao-process = { path = "crates/ao-process" }
+ao-normalizer = { path = "crates/ao-normalizer" }
+ao-engine = { path = "crates/ao-engine" }
+ao-engine-tools-core = { path = "crates/ao-engine-tools-core" }
+ao-engine-tools-io = { path = "crates/ao-engine-tools-io" }
+ao-engine-tools-engine = { path = "crates/ao-engine-tools-engine" }
+croner = "3"
+chrono-tz = "0.10"
+nosleep = "0.2"
+iana-time-zone = "0.1"
+dashmap = "6"
+toml = "0.8"
+toml_edit = "0.22"
+ao-engine-tools-provider-config = { path = "crates/ao-engine-tools-provider-config" }
+ao-engine-tools-runner = { path = "crates/ao-engine-tools-runner" }
+ao-mcp-bridge = { path = "crates/ao-mcp-bridge" }
+reqwest = { version = "0.12", default-features = false }
+clap = { version = "4", features = ["derive"] }
+tiktoken-rs = "0.11.0"
+# `bundled` statically compiles SQLite from source (via `cc`) so the FTS5
+# module is always available without relying on the host's system SQLite —
+# libsqlite3-sys unconditionally defines SQLITE_ENABLE_FTS5 for bundled
+# builds, so no separate feature flag is needed for full-text search.
+# Pinned below 0.40: libsqlite3-sys 0.38's build script uses the unstable
+# `cfg_select!` macro, which fails to compile on this workspace's stable
+# toolchain.
+rusqlite = { version = "=0.39.0", features = ["bundled"] }
+ao-search-index = { path = "crates/ao-search-index" }

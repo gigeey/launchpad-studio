@@ -1,0 +1,17 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "cost_usd": 0.003,
+  "is_error": false,
+  "duration_ms": 1234,
+  "duration_api_ms": 1000,
+  "num_turns": 1,
+  "result": "Hello! I'm Claude, an AI assistant made by Anthropic.",
+  "session_id": "session-abc-123",
+  "usage": {
+    "input_tokens": 15,
+    "output_tokens": 25,
+    "cache_read_input_tokens": 5,
+    "cache_creation_input_tokens": 2
+  }
+}

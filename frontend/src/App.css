@@ -1,0 +1,1063 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+html,
+body {
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background-image: var(--app-bg-image, none);
+  background-size: cover;
+  background-position: center;
+}
+
+
+:root {
+  font-family: Lato, sans-serif;
+  /* Previous: Inter, Avenir, Helvetica, Arial, sans-serif */
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+
+  /* Light mode color system */
+  --bg-primary: #D2D2D2;
+  --bg-secondary: #fff;
+  --bg-tertiary: #F9FAFB;
+  --bg-sidebar: #FAFAF8;
+  --bg-input: #F5F5F4;
+  --chat-input-bg: var(--bg-secondary);
+  --sidebar-active-bg: #333133;
+  --sidebar-active-text-primary: #FFFFFF;
+  --sidebar-active-text-secondary: rgba(255, 255, 255, 0.65);
+  --bg-hover: #E3E2E3;
+  --bg-user-message: #007AFF;
+  --bg-agent-message: #F5F5F5;
+  --text-primary: #2C2C2B;
+  --text-secondary: #918E8B;
+  --text-tertiary: #B0AFAD;
+  --text-on-accent: #fff;
+  /* Text color inside the user's own chat bubble (MessageBubble/FormAnswerBubble/
+     PhaseChat — anywhere rendered against the user's --bubbleColor preference).
+     Deliberately its own variable rather than reusing --text-on-accent: the
+     bubble's background is an independent per-user preference (Settings ->
+     Text Bubble Color), unrelated to the theme accent color, so the two
+     text colors shouldn't be coupled — a custom theme that sets a non-white
+     "Active Item Text" (which feeds --text-on-accent) must not also repaint
+     the chat bubble text. Declared once here in :root only (not repeated per
+     theme block like the surrounding vars) so every theme/chrome/custom theme
+     inherits the same stable value unless a theme explicitly opts in later. */
+  --text-user-message: #FFFFFF;
+  --border-primary: #DDDDDD;
+  --border-secondary: #DDDDDD;
+  /* Dedicated outline color for empty/in-flight tasklist checkboxes. Lives
+     separately from --border-secondary so we can keep the checkbox visible
+     on muted bg-tertiary surfaces without bumping every other border. */
+  --checkbox-border: #B0AFAD;
+  /* Outline color for the sidebar + content-panel "card" shell (AppShell.tsx).
+     Defaults to --border-primary so every theme gets a genuinely visible seam
+     on all four edges, not just the right side. Every theme block below
+     inherits this via the same lazy var()-fallback cascade (none of them
+     override it), so each theme border color tracks its own
+     --border-primary automatically. */
+  --shell-border: var(--border-primary);
+  --accent: #007AFF;
+  --accent-hover: #0066D6;
+  --error: #D32F2F;
+  --error-bg: #FFF0F1;
+  --error-border: #FFCDD2;
+  --success: #007A5A;
+  --input-focus-border: var(--border-primary);
+  /* Search-surface bg/border default to the standard secondary surface;
+     themes only need to override these two when they want the search box
+     to read differently from other bg-secondary surfaces (e.g. Sapphire). */
+  --search-bg: var(--bg-secondary);
+  --search-border: var(--border-secondary);
+
+  /* Modal/popover surface vars — floating UI (modals + a couple of
+     chrome-level popovers). They exist as their own namespace because modals
+     are portaled or mounted as siblings of the main content panel, so they
+     never see the content panel own neutralization (.app-content-panel in
+     AppShell.tsx). Reads Tier-A --pinned-* (defined above this block),
+     which is already root-absolute and correct per theme+mode on its own —
+     --modal-* is a thin, stable alias so the ~35 existing --modal-*
+     consumers do not need touching. */
+  --modal-bg: var(--pinned-bg);
+  --modal-bg-primary: var(--pinned-bg-primary);
+  --modal-bg-tertiary: var(--pinned-bg-tertiary);
+  --modal-bg-input: var(--pinned-bg-input);
+  --modal-bg-hover: var(--pinned-bg-hover);
+  --modal-text-primary: var(--pinned-text-primary);
+  --modal-text-secondary: var(--pinned-text-secondary);
+  --modal-text-tertiary: var(--pinned-text-tertiary);
+  /* Form-label color inside modals (e.g. "Thread name" in RenameThreadModal).
+     Deliberately its own var rather than reusing --modal-text-secondary —
+     labels need to read as prominent/near-primary (Slack-style), while
+     --modal-text-secondary stays the dimmer tone used for helper/meta text
+     elsewhere in the same modals. */
+  --modal-text-label: var(--modal-text-primary);
+  --modal-border-primary: var(--pinned-border-primary);
+  --modal-border-secondary: var(--pinned-border-secondary);
+  --modal-accent: var(--accent);
+  --modal-accent-hover: var(--accent-hover);
+  /* Active-item pair for sidebar-style rows that render inside a portaled
+     modal/popover (e.g. ChannelsTilePanel) or a docked thread-list column
+     (e.g. ChannelsColumn) alike — reads Tier-A --pinned-active-* so both
+     mount points resolve identically by construction, not by hand-sync. */
+  --modal-sidebar-active-bg: var(--pinned-active-bg);
+  --modal-sidebar-active-text-primary: var(--pinned-active-text-primary);
+  --modal-sidebar-active-text-secondary: var(--pinned-active-text-secondary);
+
+  /* Tier-B "surface" namespace — the docked main content panel token
+     contract (see the theming plan Tier-A/Tier-B/Tier-C model). Mirrors the
+     base tokens by default so "adaptive" themes (deep-space/daybreak), whose
+     base tokens already differ correctly per light/dark mode, need no
+     override at all. "Chrome" themes (constant sidebar color across modes —
+     see themeKind() in customTheme.ts) override these below, keyed on
+     [data-theme-kind='chrome'], to neutralize the content panel without
+     touching the sidebar/chrome own saturated colors (--bg-sidebar,
+     --sidebar-active-bg, etc. stay untouched, read directly, always). Every
+     value here is set exactly once per theme+mode at this root/attribute
+     level — never inside a classname-scoped rule — so it resolves
+     identically for a docked panel and a portaled one; see the --modal-bg
+     comment above for the DOM-position bug this shape avoids. */
+  --surface-bg: var(--bg-secondary);
+  --surface-bg-primary: var(--bg-primary);
+  --surface-bg-tertiary: var(--bg-tertiary);
+  --surface-bg-input: var(--bg-input);
+  --surface-chat-input-bg: var(--chat-input-bg);
+  --surface-bg-hover: var(--bg-hover);
+  --surface-bg-agent-message: var(--bg-agent-message);
+  --surface-text-primary: var(--text-primary);
+  --surface-text-secondary: var(--text-secondary);
+  --surface-text-tertiary: var(--text-tertiary);
+  --surface-border-primary: var(--border-primary);
+  --surface-border-secondary: var(--border-secondary);
+  --surface-active-bg: var(--sidebar-active-bg);
+  --surface-active-text-primary: var(--sidebar-active-text-primary);
+  --surface-active-text-secondary: var(--sidebar-active-text-secondary);
+
+  /* Tier-A "pinned" namespace — portaled modals/popovers and thread-list-style
+     rows (see the theming plan). Pinned only in light mode: always our clean
+     default white, theme-independent, defined once in the [data-theme='light']
+     block below. In dark mode it falls through to Tier-B own dark content
+     surface (this theme neutralized dark panel) rather than a dedicated
+     dark-neutral palette — see the [data-theme='dark'] block below. */
+  --pinned-bg: var(--surface-bg);
+  --pinned-bg-primary: var(--surface-bg-primary);
+  --pinned-bg-tertiary: var(--surface-bg-tertiary);
+  --pinned-bg-input: var(--surface-bg-input);
+  --pinned-chat-input-bg: var(--surface-chat-input-bg);
+  --pinned-bg-hover: var(--surface-bg-hover);
+  --pinned-text-primary: var(--surface-text-primary);
+  --pinned-text-secondary: var(--surface-text-secondary);
+  --pinned-text-tertiary: var(--surface-text-tertiary);
+  --pinned-border-primary: var(--surface-border-primary);
+  --pinned-border-secondary: var(--surface-border-secondary);
+  --pinned-active-bg: var(--surface-active-bg);
+  --pinned-active-text-primary: var(--surface-active-text-primary);
+  --pinned-active-text-secondary: var(--surface-active-text-secondary);
+
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Tier-A "pinned" surfaces, light mode: always clean default white,
+   theme-independent — one absolute set here for every theme (see the
+   --pinned-* doc comment in :root above). */
+[data-theme='light'] {
+  --pinned-bg: #FFFFFF;
+  --pinned-bg-primary: #f6f6f6;
+  --pinned-bg-tertiary: #F9FAFB;
+  --pinned-bg-input: #F5F5F4;
+  --pinned-chat-input-bg: #FFFFFF;
+  --pinned-bg-hover: #F0F0EF;
+  --pinned-text-primary: #2C2C2B;
+  --pinned-text-secondary: #918E8B;
+  --pinned-text-tertiary: #B0AFAD;
+  --pinned-border-primary: #E6E5E3;
+  --pinned-border-secondary: #eee;
+  --pinned-active-bg: #F0F0EF;
+  --pinned-active-text-primary: #2C2C2B;
+  --pinned-active-text-secondary: #918E8B;
+}
+
+[data-theme='dark'] {
+  --bg-primary: #1E1E1E;
+  --bg-secondary: #252526;
+  --bg-tertiary: #2D2D2D;
+  --bg-sidebar: #2D2D2D;
+  --bg-input: #3C3C3C;
+  --bg-hover: #37373D;
+  --sidebar-active-bg: rgba(255, 255, 255, 0.10);
+  --bg-user-message: #264F78;
+  --bg-agent-message: #2D2D2D;
+  --text-primary: #CCCCCC;
+  --text-secondary: #969696;
+  --text-tertiary: #6A6A6A;
+  --text-on-accent: #fff;
+  --border-primary: #3C3C3C;
+  --border-secondary: #3C3C3C;
+  --checkbox-border: #6A6A6A;
+  --accent: #0078D4;
+  --accent-hover: #1A8CE6;
+  --error: #F44747;
+  --error-bg: #3C1E1E;
+  --error-border: #5C2626;
+  --success: #4EC9B0;
+  --input-focus-border: var(--accent);
+
+  /* Tier-A pinned, dark mode: falls through to this theme own Tier-B dark
+     content surface rather than a dedicated pinned-dark palette (Andrew
+     2026-07-25 decision — "dark pinned == dark content"). --surface-* here
+     is still the :root mirror for the base (non-chrome) theme; chrome themes
+     override --surface-* per-theme below, and --pinned-* picks that up too
+     since it is just re-read from --surface-* at this same root level. */
+  --pinned-bg: var(--surface-bg);
+  --pinned-bg-primary: var(--surface-bg-primary);
+  --pinned-bg-tertiary: var(--surface-bg-tertiary);
+  --pinned-bg-input: var(--surface-bg-input);
+  --pinned-chat-input-bg: var(--surface-chat-input-bg);
+  --pinned-bg-hover: var(--surface-bg-hover);
+  --pinned-text-primary: var(--surface-text-primary);
+  --pinned-text-secondary: var(--surface-text-secondary);
+  --pinned-text-tertiary: var(--surface-text-tertiary);
+  --pinned-border-primary: var(--surface-border-primary);
+  --pinned-border-secondary: var(--surface-border-secondary);
+}
+/* Dark mode scrollbar styling. Every "chrome" theme keeps a dark-styled
+   sidebar/scrollbar regardless of app light/dark mode (see themeKind() in
+   customTheme.ts) — a single [data-theme-kind='chrome'] selector covers all
+   of them, including 'plum', which the old per-theme enumeration had
+   silently dropped. */
+[data-theme='dark'],
+[data-theme-kind='chrome'] {
+  color-scheme: dark;
+}
+
+/* Base dark-styled scrollbar — used by actual dark mode (any theme) and by
+   every "chrome" theme sidebar/chrome regardless of app light/dark mode
+   (see themeKind() in customTheme.ts). A single combined selector replaces
+   what used to be this same block repeated verbatim once per chrome theme. */
+[data-theme='dark'] ::-webkit-scrollbar,
+[data-theme-kind='chrome'] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-track,
+[data-theme-kind='chrome'] ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb,
+[data-theme-kind='chrome'] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb:hover,
+[data-theme-kind='chrome'] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.40);
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-corner,
+[data-theme-kind='chrome'] ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Chrome themes, light mode: the content panel own scrollbar should be
+   light instead of the dark default above — scoped to .app-content-panel
+   (AppShell.tsx Right Panel), the same class the Tier-B neutralization
+   rule targets, so this no longer needs a per-theme classname. */
+[data-theme-kind='chrome'][data-theme='light'] .app-content-panel ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-theme-kind='chrome'][data-theme='light'] .app-content-panel ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 4px;
+}
+
+[data-theme-kind='chrome'][data-theme='light'] .app-content-panel ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.30);
+}
+
+[data-theme-kind='chrome'][data-theme='light'] .app-content-panel ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Sapphire light mode: Assignment list tiles (.scheduled-list-tile, see
+   AssignmentList.tsx) get a softer, less contrasty border than the default
+   --border-secondary (a deep royal navy in this theme, fine for chrome but
+   too harsh on the white content panel these cards sit in). Other themes
+   keep the default for now — revisit per-theme if requested. */
+[data-app-theme='sapphire'][data-theme='light'] .app-content-panel .scheduled-list-tile {
+  border-color: #D9D9D9;
+}
+
+/* Chrome themes, light mode: in-scope overlay surface scrollbars
+   (modals/popovers/thread-lists — the Tier-A "pinned" set) should be light.
+   Keep this selector list in sync with the canonical surface list in the
+   override block below. Default does not need an entry — it never darkens
+   its scrollbars in the first place. */
+[data-theme-kind='chrome'][data-theme='light'] .agent-profile-modal ::-webkit-scrollbar-track,
+[data-theme-kind='chrome'][data-theme='light'] .team-edit-modal ::-webkit-scrollbar-track,
+[data-theme-kind='chrome'][data-theme='light'] .scheduled-task-modal ::-webkit-scrollbar-track,
+[data-theme-kind='chrome'][data-theme='light'] .competencies-modal ::-webkit-scrollbar-track,
+[data-theme-kind='chrome'][data-theme='light'] .collections-modal ::-webkit-scrollbar-track,
+[data-theme-kind='chrome'][data-theme='light'] .settings-modal ::-webkit-scrollbar-track,
+[data-theme-kind='chrome'][data-theme='light'] .docs-modal ::-webkit-scrollbar-track,
+[data-theme-kind='chrome'][data-theme='light'] .app-search-results ::-webkit-scrollbar-track,
+[data-theme-kind='chrome'][data-theme='light'] .chat-attach-popover ::-webkit-scrollbar-track,
+[data-theme-kind='chrome'][data-theme='light'] .chat-more-menu ::-webkit-scrollbar-track,
+[data-theme-kind='chrome'][data-theme='light'] .create-tasklist-modal ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-theme-kind='chrome'][data-theme='light'] .agent-profile-modal ::-webkit-scrollbar-thumb,
+[data-theme-kind='chrome'][data-theme='light'] .team-edit-modal ::-webkit-scrollbar-thumb,
+[data-theme-kind='chrome'][data-theme='light'] .scheduled-task-modal ::-webkit-scrollbar-thumb,
+[data-theme-kind='chrome'][data-theme='light'] .competencies-modal ::-webkit-scrollbar-thumb,
+[data-theme-kind='chrome'][data-theme='light'] .collections-modal ::-webkit-scrollbar-thumb,
+[data-theme-kind='chrome'][data-theme='light'] .settings-modal ::-webkit-scrollbar-thumb,
+[data-theme-kind='chrome'][data-theme='light'] .docs-modal ::-webkit-scrollbar-thumb,
+[data-theme-kind='chrome'][data-theme='light'] .app-search-results ::-webkit-scrollbar-thumb,
+[data-theme-kind='chrome'][data-theme='light'] .chat-attach-popover ::-webkit-scrollbar-thumb,
+[data-theme-kind='chrome'][data-theme='light'] .chat-more-menu ::-webkit-scrollbar-thumb,
+[data-theme-kind='chrome'][data-theme='light'] .create-tasklist-modal ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 4px;
+}
+
+[data-theme-kind='chrome'][data-theme='light'] .agent-profile-modal ::-webkit-scrollbar-thumb:hover,
+[data-theme-kind='chrome'][data-theme='light'] .team-edit-modal ::-webkit-scrollbar-thumb:hover,
+[data-theme-kind='chrome'][data-theme='light'] .scheduled-task-modal ::-webkit-scrollbar-thumb:hover,
+[data-theme-kind='chrome'][data-theme='light'] .competencies-modal ::-webkit-scrollbar-thumb:hover,
+[data-theme-kind='chrome'][data-theme='light'] .collections-modal ::-webkit-scrollbar-thumb:hover,
+[data-theme-kind='chrome'][data-theme='light'] .settings-modal ::-webkit-scrollbar-thumb:hover,
+[data-theme-kind='chrome'][data-theme='light'] .docs-modal ::-webkit-scrollbar-thumb:hover,
+[data-theme-kind='chrome'][data-theme='light'] .app-search-results ::-webkit-scrollbar-thumb:hover,
+[data-theme-kind='chrome'][data-theme='light'] .chat-attach-popover ::-webkit-scrollbar-thumb:hover,
+[data-theme-kind='chrome'][data-theme='light'] .chat-more-menu ::-webkit-scrollbar-thumb:hover,
+[data-theme-kind='chrome'][data-theme='light'] .create-tasklist-modal ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.30);
+}
+
+[data-theme-kind='chrome'][data-theme='light'] .agent-profile-modal ::-webkit-scrollbar-corner,
+[data-theme-kind='chrome'][data-theme='light'] .team-edit-modal ::-webkit-scrollbar-corner,
+[data-theme-kind='chrome'][data-theme='light'] .scheduled-task-modal ::-webkit-scrollbar-corner,
+[data-theme-kind='chrome'][data-theme='light'] .competencies-modal ::-webkit-scrollbar-corner,
+[data-theme-kind='chrome'][data-theme='light'] .collections-modal ::-webkit-scrollbar-corner,
+[data-theme-kind='chrome'][data-theme='light'] .settings-modal ::-webkit-scrollbar-corner,
+[data-theme-kind='chrome'][data-theme='light'] .docs-modal ::-webkit-scrollbar-corner,
+[data-theme-kind='chrome'][data-theme='light'] .app-search-results ::-webkit-scrollbar-corner,
+[data-theme-kind='chrome'][data-theme='light'] .chat-attach-popover ::-webkit-scrollbar-corner,
+[data-theme-kind='chrome'][data-theme='light'] .chat-more-menu ::-webkit-scrollbar-corner,
+[data-theme-kind='chrome'][data-theme='light'] .create-tasklist-modal ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+
+/* Tier-B content-panel neutral, light mode — shared by every "chrome" theme
+   (see themeKind() in customTheme.ts). Values are identical across all chrome
+   themes (this is the same neutral white/grey palette the modal-neutral block
+   below uses), so a single [data-theme-kind='chrome'] selector replaces what
+   would otherwise be a 9-way per-theme enumeration. */
+[data-theme-kind='chrome'][data-theme='light'] {
+  --surface-bg: #FFFFFF;
+  --surface-bg-primary: #f6f6f6;
+  --surface-bg-tertiary: #F9FAFB;
+  --surface-bg-input: #F5F5F4;
+  --surface-chat-input-bg: #FFFFFF;
+  --surface-bg-hover: #F0F0EF;
+  --surface-bg-agent-message: #F5F5F5;
+  --surface-text-primary: #2C2C2B;
+  --surface-text-secondary: #918E8B;
+  --surface-text-tertiary: #B0AFAD;
+  --surface-border-primary: #E6E5E3;
+  --surface-border-secondary: #eee;
+  --surface-active-bg: #F0F0EF;
+  --surface-active-text-primary: #2C2C2B;
+  --surface-active-text-secondary: #918E8B;
+}
+
+/* Custom theme, dark mode: --surface-* is runtime-computed (the palette is not
+   known statically) — useThemeSync (App.tsx) injects the raw
+   --custom-dark-content-* values on <html>, this just aliases them into the
+   same Tier-B namespace every other chrome theme uses above, so
+   .app-content-panel below needs no custom-specific case. */
+[data-theme-kind='chrome'][data-theme='dark'] {
+  --surface-bg: var(--custom-dark-content-bg);
+  --surface-bg-tertiary: var(--custom-dark-content-bg-tertiary);
+  --surface-bg-input: var(--custom-dark-content-bg-input);
+  --surface-chat-input-bg: var(--custom-dark-content-chat-input-bg);
+  --surface-bg-hover: var(--custom-dark-content-bg-hover);
+  --surface-bg-agent-message: var(--custom-dark-content-bg-agent-message);
+  --surface-bg-primary: var(--custom-dark-content-bg-primary);
+  --surface-border-primary: var(--custom-dark-content-border-primary);
+  --surface-border-secondary: var(--custom-dark-content-border-secondary);
+  --surface-text-primary: var(--custom-dark-content-text-primary);
+  --surface-text-secondary: var(--custom-dark-content-text-secondary);
+  --surface-text-tertiary: var(--custom-dark-content-text-tertiary);
+}
+
+/* Custom theme, light mode: re-point the active row back to the user-chosen
+   active-item colors instead of Tier-A universal neutral grey (see the
+   Tier-A doc comment further below for the full rationale). */
+[data-theme-kind='chrome'][data-theme='light'] {
+  --pinned-active-bg: var(--sidebar-active-bg);
+  --pinned-active-text-primary: var(--sidebar-active-text-primary);
+  --pinned-active-text-secondary: var(--sidebar-active-text-secondary);
+}
+
+/* Right Panel content neutralization for every "chrome" theme — reads only
+   Tier-B --surface-* (root-absolute per the contract above), so this
+   resolves identically for the docked panel and anything portaled to
+   document.body. Replaces the old AppShell.tsx inline-style maps
+   (needsLightOverride/needsDarkContentOverride/darkContentMap). Active-row
+   colors (--sidebar-active-bg and its text pair) are neutralized in light
+   mode only, uniformly for every chrome theme including custom — Tier-A
+   surfaces (thread-lists, modals, popovers — see --modal-* / --pinned-*)
+   are the ones that re-point custom back to its own accent; this general
+   content-panel background is not. */
+[data-theme-kind='chrome'][data-theme='light'] .app-content-panel {
+  --bg-secondary: var(--surface-bg);
+  --bg-primary: var(--surface-bg-primary);
+  --bg-tertiary: var(--surface-bg-tertiary);
+  --bg-input: var(--surface-bg-input);
+  --chat-input-bg: var(--surface-chat-input-bg);
+  --bg-hover: var(--surface-bg-hover);
+  --bg-agent-message: var(--surface-bg-agent-message);
+  --text-primary: var(--surface-text-primary);
+  --text-secondary: var(--surface-text-secondary);
+  --text-tertiary: var(--surface-text-tertiary);
+  --border-primary: var(--surface-border-primary);
+  --border-secondary: var(--surface-border-secondary);
+  --sidebar-active-bg: var(--surface-active-bg);
+  --sidebar-active-text-primary: var(--surface-active-text-primary);
+  --sidebar-active-text-secondary: var(--surface-active-text-secondary);
+}
+
+[data-theme-kind='chrome'][data-theme='dark'] .app-content-panel {
+  --bg-secondary: var(--surface-bg);
+  --bg-primary: var(--surface-bg-primary);
+  --bg-tertiary: var(--surface-bg-tertiary);
+  --bg-input: var(--surface-bg-input);
+  --chat-input-bg: var(--surface-chat-input-bg);
+  --bg-hover: var(--surface-bg-hover);
+  --bg-agent-message: var(--surface-bg-agent-message);
+  --text-primary: var(--surface-text-primary);
+  --text-secondary: var(--surface-text-secondary);
+  --text-tertiary: var(--surface-text-tertiary);
+  --border-primary: var(--surface-border-primary);
+  --border-secondary: var(--surface-border-secondary);
+}
+
+/* No per-theme light-mode --modal-* override needed here anymore: --modal-*
+   (see :root) now aliases Tier-A --pinned-*, which is already the correct
+   absolute white in light mode for every theme uniformly (per the 2026-07-25
+   "pinned in light mode only" decision) -- chrome, adaptive, or custom
+   alike. Retired the old chrome-only neutral-white block this replaced; it
+   produced byte-identical values through a longer, theme-kind-gated path.
+   Custom theme own re-point (grey to its own accent) lives earlier in this
+   file, right next to its dark-mode counterpart -- see the
+   [data-app-theme='custom'][data-theme='light'] rule above.
+   Full rationale: the grey neutralization exists because the hardcoded
+   chrome themes keep a saturated --sidebar-active-bg that reads wrong on a
+   white pinned surface -- but the Custom palette active trio (bg + both
+   text colors) is user-chosen and derived to be legible together
+   (customTheme.ts), applied inline on <html> in both modes. So a pinned
+   surface active thread should match the chat sidebar active item exactly,
+   the same way it already does in dark mode (dark pinned == dark content,
+   and dark content was never neutralized for the active row). Re-pointing
+   --pinned-active-* (rather than --modal-sidebar-active-bg directly) means
+   every --modal-* / --pinned-* consumer picks this up through the same one
+   alias chain, docked or portaled alike. */
+
+/* Daybreak — Dark mode: Apple-style dark surfaces. Daybreak is hand-authored
+   but has no dark palette of its own — it's always an adaptive theme (see
+   themeKind()), so it carries no inline styles and no chrome surface
+   aliasing, letting this plain rule win cleanly. Daybreak's light mode is
+   untouched (its own hand-authored block above). */
+[data-app-theme='daybreak'][data-theme='dark'] {
+  --app-bg-image: none;
+  --app-backdrop-filter: none;
+
+  --bg-primary: #1C1C1E;
+  --bg-secondary: #2C2C2E;
+  --bg-tertiary: #1C1C1E;
+  --bg-sidebar: #252528;
+  --bg-input: #3A3A3C;
+  --chat-input-bg: #2C2C2E;
+
+  --sidebar-active-bg: #0A84FF;
+  --sidebar-active-text-primary: #FFFFFF;
+  --sidebar-active-text-secondary: rgba(255, 255, 255, 0.65);
+
+  --bg-hover: #3A3A3C;
+  --bg-user-message: #30D158;
+  --bg-agent-message: #3A3A3C;
+
+  --text-primary: #F2F2F7;
+  --text-secondary: #98989D;
+  --text-tertiary: #636366;
+  --text-on-accent: #FFFFFF;
+
+  --border-primary: #505052;
+  --border-secondary: #5A5A5C;
+  --checkbox-border: #6E6E72;
+
+  --accent: #0A84FF;
+  --accent-hover: #409CFF;
+  --error: #FF453A;
+  --error-bg: #3A1515;
+  --error-border: #5C2020;
+  --success: #016F4A;
+  --input-focus-border: var(--accent);
+}
+
+/* Deep Space — preserved original dark theme (applies in both light and dark) */
+[data-app-theme='deep-space'][data-theme='light'] {
+  --bg-primary: #1E1E1E;
+  --bg-secondary: #252526;
+  --bg-tertiary: #2D2D2D;
+  --bg-sidebar: #2D2D2D;
+  --bg-input: #3C3C3C;
+  --bg-hover: #37373D;
+  --sidebar-active-bg: rgba(255, 255, 255, 0.10);
+  --bg-user-message: #264F78;
+  --bg-agent-message: #2D2D2D;
+  --text-primary: #CCCCCC;
+  --text-secondary: #969696;
+  --text-tertiary: #6A6A6A;
+  --text-on-accent: #fff;
+  --border-primary: #3C3C3C;
+  --border-secondary: #3C3C3C;
+  --checkbox-border: #6A6A6A;
+  --accent: #0078D4;
+  --accent-hover: #1A8CE6;
+  --error: #F44747;
+  --error-bg: #3C1E1E;
+  --error-border: #5C2626;
+  --success: #4EC9B0;
+  --input-focus-border: var(--accent);
+  --pinned-bg: var(--surface-bg);
+  --pinned-bg-primary: var(--surface-bg-primary);
+  --pinned-bg-tertiary: var(--surface-bg-tertiary);
+  --pinned-bg-input: var(--surface-bg-input);
+  --pinned-chat-input-bg: var(--surface-chat-input-bg);
+  --pinned-bg-hover: var(--surface-bg-hover);
+  --pinned-text-primary: var(--surface-text-primary);
+  --pinned-text-secondary: var(--surface-text-secondary);
+  --pinned-text-tertiary: var(--surface-text-tertiary);
+  --pinned-border-primary: var(--surface-border-primary);
+  --pinned-border-secondary: var(--surface-border-secondary);
+}
+
+/* Daybreak — hand-authored light palette (dark mode shares Chat's dark block) */
+[data-app-theme='daybreak'][data-theme='light'] {
+  /* surfaces: nav/frame → sidebar → content brightest */
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F2F2F4;
+  --bg-tertiary: #ECECEF;
+  --bg-sidebar: #F2F2F4;
+  --bg-input: #FFFFFF;
+  --chat-input-bg: #FFFFFF;
+  --bg-hover: #E6E6E9;
+  --bg-agent-message: #F2F2F4;
+  --bg-user-message: #1FBAD6;
+  /* text */
+  --text-primary: #151525;
+  --text-secondary: #5A5A6A;
+  --text-tertiary: #8E8E9C;
+  --sidebar-text-primary: #151525;
+  --text-on-accent: #FFFFFF;
+  --text-user-message: #FFFFFF;
+  /* selection */
+  --sidebar-active-bg: #1FBAD6;
+  --sidebar-active-text-primary: #FFFFFF;
+  --sidebar-active-text-secondary: rgba(255, 255, 255, 0.70);
+  /* accent (cyan brand) */
+  --accent: #1FBAD6;
+  --accent-hover: #17A6C0;
+  --input-focus-border: var(--accent);
+  --presence-indicator: #1FBAD6;
+  --unread-badge-bg: #1FBAD6;
+  /* borders */
+  --border-primary: #E6E6E9;
+  --border-secondary: #DCDCE1;
+  --checkbox-border: #C0C0C8;
+  --shell-border: var(--border-primary);
+  --search-bg: var(--bg-secondary);
+  --search-border: #CBCBD3;
+  /* status (kept light-appropriate) */
+  --error: #D32F2F;
+  --error-bg: #FFF0F1;
+  --error-border: #FFCDD2;
+  --success: #007A5A;
+}
+
+[data-app-theme='deep-space'][data-theme='dark'],
+[data-app-theme='default'][data-theme='dark'] {
+  --bg-primary: #1E1E1E;
+  --bg-secondary: #252526;
+  --bg-tertiary: #2D2D2D;
+  --bg-sidebar: #2D2D2D;
+  --bg-input: #3C3C3C;
+  --bg-hover: #37373D;
+  --sidebar-active-bg: rgba(255, 255, 255, 0.10);
+  --bg-user-message: #264F78;
+  --bg-agent-message: #2D2D2D;
+  --text-primary: #CCCCCC;
+  --text-secondary: #969696;
+  --text-tertiary: #6A6A6A;
+  --text-on-accent: #fff;
+  --border-primary: #3C3C3C;
+  --border-secondary: #3C3C3C;
+  --checkbox-border: #6A6A6A;
+  --accent: #0078D4;
+  --accent-hover: #1A8CE6;
+  --error: #F44747;
+  --error-bg: #3C1E1E;
+  --error-border: #5C2626;
+  --success: #4EC9B0;
+  --input-focus-border: var(--accent);
+  --pinned-bg: var(--surface-bg);
+  --pinned-bg-primary: var(--surface-bg-primary);
+  --pinned-bg-tertiary: var(--surface-bg-tertiary);
+  --pinned-bg-input: var(--surface-bg-input);
+  --pinned-chat-input-bg: var(--surface-chat-input-bg);
+  --pinned-bg-hover: var(--surface-bg-hover);
+  --pinned-text-primary: var(--surface-text-primary);
+  --pinned-text-secondary: var(--surface-text-secondary);
+  --pinned-text-tertiary: var(--surface-text-tertiary);
+  --pinned-border-primary: var(--surface-border-primary);
+  --pinned-border-secondary: var(--surface-border-secondary);
+}
+
+@keyframes bookmark-flash {
+  0% {
+    background-color: color-mix(in srgb, var(--accent) 15%, transparent);
+  }
+
+  100% {
+    background-color: transparent;
+  }
+}
+
+.bookmark-highlight {
+  animation: bookmark-flash 1.5s ease-out;
+  border-radius: 8px;
+}
+
+@keyframes border-flash {
+
+  0%,
+  100% {
+    border-color: var(--border-primary);
+  }
+
+  15%,
+  45% {
+    border-color: #ef4444;
+  }
+
+  30%,
+  60% {
+    border-color: var(--border-primary);
+  }
+
+  75% {
+    border-color: #ef4444;
+  }
+}
+
+.animate-border-flash {
+  animation: border-flash 600ms ease-in-out;
+}
+
+/* Theme transition for smooth switching on major containers */
+body,
+#root,
+#root>div,
+nav,
+aside,
+main,
+header,
+section,
+[data-theme] button,
+[data-theme] input,
+[data-theme] textarea {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Sidebar chat items: instant selection — no stagger between text and bg color */
+aside [class*="cursor-pointer"],
+aside [class*="cursor-pointer"] * {
+  transition: none !important;
+}
+
+/* Dark mode depth for elevated elements */
+[data-theme='dark'] .shadow-sm,
+[data-theme='dark'] .shadow,
+[data-theme='dark'] .shadow-md,
+[data-theme='dark'] .shadow-lg {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Focus ring visibility in dark mode */
+[data-theme='dark'] :focus-visible {
+  outline-color: var(--accent);
+}
+
+/* Prose (Tailwind Typography) overrides — use CSS variables for theme reactivity */
+.prose {
+  --tw-prose-body: var(--text-primary);
+  --tw-prose-headings: var(--text-primary);
+  --tw-prose-bold: var(--text-primary);
+  --tw-prose-links: var(--accent);
+  --tw-prose-code: var(--text-primary);
+  --tw-prose-pre-bg: var(--bg-tertiary);
+  --tw-prose-pre-code: var(--text-primary);
+  --tw-prose-quotes: var(--text-secondary);
+  --tw-prose-counters: var(--text-secondary);
+  --tw-prose-bullets: var(--text-tertiary);
+  --tw-prose-hr: var(--border-primary);
+  --tw-prose-th-borders: var(--border-primary);
+  --tw-prose-td-borders: var(--border-secondary);
+}
+
+/* Explicit bold/strong override to guarantee visibility */
+.prose :where(strong):not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+/* Inline code: preserve whitespace and remove Tailwind prose backtick pseudo-elements */
+.prose :where(code):not(:where(pre code, [class~="not-prose"], [class~="not-prose"] *)) {
+  white-space: pre-wrap;
+}
+
+.prose :where(code):not(:where(pre code, [class~="not-prose"], [class~="not-prose"] *))::before,
+.prose :where(code):not(:where(pre code, [class~="not-prose"], [class~="not-prose"] *))::after {
+  content: none;
+}
+
+/* TipTap editor styles */
+.tiptap p.is-editor-empty:first-child::before {
+  color: var(--text-tertiary);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Hide TipTap placeholder when editor is not editable (disabled state) */
+.tiptap[contenteditable="false"] p.is-editor-empty:first-child::before {
+  content: none;
+}
+
+.tiptap {
+  outline: none;
+  line-height: 24px;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.tiptap p {
+  margin: 0;
+  padding: 0;
+}
+
+/* Ensure ProseMirror has no default padding */
+.ProseMirror {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Mention chip styling */
+.mention-chip {
+  display: inline-block;
+  /* Light mode: crisp, solid pale blue background */
+  background-color: color-mix(in srgb, var(--accent) 12%, var(--bg-primary));
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-weight: 700;
+  font-size: 0.9em;
+  line-height: 1.2;
+  white-space: nowrap;
+  user-select: all;
+  transition: background-color 0.15s ease;
+  vertical-align: baseline;
+}
+
+.mention-chip:hover {
+  background-color: color-mix(in srgb, var(--accent) 22%, var(--bg-primary));
+}
+
+/* Dark mode keeping the solid appearance the user liked */
+[data-theme='dark'] .mention-chip {
+  background-color: var(--accent);
+  color: var(--text-on-accent);
+}
+
+[data-theme='dark'] .mention-chip:hover {
+  background-color: var(--accent-hover);
+}
+
+/* Placeholder chip styling (system prompt editor {{tokens}}) — mirrors
+   .mention-chip so {{placeholder}} tokens read as a clear pill, with a
+   different shape (square-ish) to distinguish them from @mentions. */
+.placeholder-chip {
+  display: inline-block;
+  background-color: color-mix(in srgb, var(--accent) 12%, var(--bg-primary));
+  color: var(--accent);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-weight: 700;
+  font-size: 0.9em;
+  line-height: 1.2;
+  white-space: nowrap;
+  user-select: all;
+  transition: background-color 0.15s ease;
+  vertical-align: baseline;
+}
+
+.placeholder-chip:hover {
+  background-color: color-mix(in srgb, var(--accent) 22%, var(--bg-primary));
+}
+
+[data-theme='dark'] .placeholder-chip {
+  background-color: var(--accent);
+  color: var(--text-on-accent);
+}
+
+[data-theme='dark'] .placeholder-chip:hover {
+  background-color: var(--accent-hover);
+}
+
+/* Shimmer text effect for running phases */
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.shimmer-text {
+  background: linear-gradient(90deg,
+      var(--text-primary) 0%,
+      var(--text-primary) 35%,
+      var(--accent) 50%,
+      var(--text-primary) 65%,
+      var(--text-primary) 100%);
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 2.5s ease-in-out infinite;
+}
+
+/* Shake animation for invalid debug code input */
+@keyframes shake {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(-4px);
+  }
+
+  40% {
+    transform: translateX(4px);
+  }
+
+  60% {
+    transform: translateX(-4px);
+  }
+
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+/* ── Light-mode neutral palette for overlay surfaces ──────────────────────── */
+
+/* Canonical in-scope surface list — the selector list is:
+     .settings-modal       — Settings/Docs modal
+     .docs-modal           — Docs view of the Settings modal
+     .settings-popover     — Settings/Docs popover menu (sidebar gear click)
+     .app-search-results   — global Search results dropdown (the search bar
+                             input itself intentionally keeps theme color)
+     .scheduled-task-modal — Schedule Item modal
+     .competencies-modal   — Competencies modal
+     .collections-modal    — Collections modal
+     .chat-attach-popover  — ChatInput paperclip-pin popover
+     .chat-more-menu       — ChatHeader three-dots menu
+     .agent-profile-modal     — (legacy, kept for parity)
+     .team-edit-modal      — (legacy, kept for parity)
+     .create-tasklist-modal — Create new TaskList modal (TeamsView)
+     .rename-thread-modal  — Rename thread modal (tab-strip right-click)
+   .settings-popover is intentionally excluded from the scrollbar override
+   blocks above because it never scrolls (fixed two-item menu).
+   NOTE (2026-07-25 audit): not every surface in this list actually reads
+   --modal-* / --pinned-* — the ChatHeader three-dots menu (.chat-more-menu)
+   and InlineTasklistPanels create-tasklist-modal read these raw base
+   tokens directly, so this block is NOT the redundant safety net the
+   original plan assumed once Tier-A resolved portal-safely; it is still
+   load-bearing for those two. Collapsed to [data-theme-kind=chrome] (from
+   a per-theme enumeration) rather than removed, which also fixes
+   the actual leak — plum/gitlab/denim/goodstuff/custom never had this
+   neutral-white override and reverted to their saturated chrome bg (a real,
+   previously unnoticed bug for anyone using those two surfaces in light
+   mode).
+   Accent variables are intentionally NOT overridden so the theme identity
+   (focus rings, primary buttons) still shows through inside the surface. */
+[data-theme-kind='chrome'][data-theme='light'] .agent-profile-modal,
+[data-theme-kind='chrome'][data-theme='light'] .team-edit-modal,
+[data-theme-kind='chrome'][data-theme='light'] .scheduled-task-modal,
+[data-theme-kind='chrome'][data-theme='light'] .competencies-modal,
+[data-theme-kind='chrome'][data-theme='light'] .collections-modal,
+[data-theme-kind='chrome'][data-theme='light'] .settings-modal,
+[data-theme-kind='chrome'][data-theme='light'] .docs-modal,
+[data-theme-kind='chrome'][data-theme='light'] .app-search-results,
+[data-theme-kind='chrome'][data-theme='light'] .settings-popover,
+[data-theme-kind='chrome'][data-theme='light'] .chat-attach-popover,
+[data-theme-kind='chrome'][data-theme='light'] .chat-more-menu,
+[data-theme-kind='chrome'][data-theme='light'] .rename-thread-modal,
+[data-theme-kind='chrome'][data-theme='light'] .create-tasklist-modal {
+  --bg-primary: #f6f6f6;
+  --bg-secondary: #fff;
+  --bg-tertiary: #F9FAFB;
+  --bg-input: #F5F5F4;
+  --chat-input-bg: #fff;
+  --bg-hover: #F0F0EF;
+  --sidebar-active-bg: #F0F0EF;
+  --sidebar-active-text-primary: #2C2C2B;
+  --sidebar-active-text-secondary: #918E8B;
+  --text-primary: #2C2C2B;
+  --text-secondary: #918E8B;
+  --text-tertiary: #B0AFAD;
+  --border-primary: #DDDDDD;
+  --border-secondary: #DDDDDD;
+  --checkbox-border: #B0AFAD;
+}
+
+/* Light mode: transparent input fills with a subtle neutral border. Focus
+   still uses the theme accent.
+   Competencies modal is intentionally excluded — its inputs are search bars
+   that sit on --bg-primary content, so they need an explicit bg-secondary
+   fill (matching the Collections modal) to stand out from the page.
+   The address-book search input is intentionally included here (not
+   excluded) so its border matches the Info tab's text inputs. */
+[data-theme='light'] .agent-profile-modal input[type='text'],
+[data-theme='light'] .agent-profile-modal textarea,
+[data-theme='light'] .agent-profile-modal select,
+[data-theme='light'] .team-edit-modal input[type='text'],
+[data-theme='light'] .team-edit-modal textarea,
+[data-theme='light'] .team-edit-modal select,
+[data-theme='light'] .scheduled-task-modal input[type='text'],
+[data-theme='light'] .scheduled-task-modal textarea,
+[data-theme='light'] .scheduled-task-modal select,
+[data-theme='light'] .settings-modal input[type='text'],
+[data-theme='light'] .settings-modal textarea,
+[data-theme='light'] .settings-modal select,
+[data-theme='light'] .rename-thread-modal input[type='text'] {
+  background-color: transparent;
+  border-color: #B6B6B7;
+}
+
+/* "Current delegates" list container (address book editor): border nudged
+   slightly darker than the default --modal-border-primary (#E6E5E3) so the
+   box reads as a defined container, without going as dark as the Info tab's
+   text-input border (#B6B6B7). Dark mode gets the mirror-image nudge —
+   slightly *lighter* than its default --modal-border-primary (#3C3C3C, via
+   --border-primary), same ~16/255 step, so the container reads as defined
+   against the dark modal background instead of blending into it. */
+[data-theme='light'] .agent-profile-modal [data-testid='address-book-delegates'] {
+  border-color: #D6D5D3;
+}
+
+[data-theme='dark'] .agent-profile-modal [data-testid='address-book-delegates'] {
+  border-color: #4C4C4C;
+}
+
+/* Competencies-modal tile borders (Skill/Rule/Instruction/Workflow cards): the shared
+   --modal-border-secondary token is too faint against the white modal
+   surface in light mode (#DDDDDD in the base theme, #eee on the "chrome"
+   themes) to read as a card edge. Overriding the token itself — scoped to
+   elements carrying .competency-tile — rather than setting border-color
+   directly means every border-[var(--modal-border-secondary)] use inside a
+   tile (the card edge, the internal border-t divider, the added-by icon
+   circle) picks up the bump together, and it wins over the ancestor's
+   inherited value without touching hover:border-[var(--modal-border-primary)]
+   (a different token) or any other surface. #B6B6B7 (the shade reused
+   elsewhere in this file as "visible border in light mode") read too dark
+   here per feedback; #CFCFCF was a step lighter but still read a touch
+   dark, so this uses #D6D6D6 — still a step up from the base
+   --modal-border-secondary (#DDDDDD/#eee) but softer than the text-input
+   border shade. Scoped to light mode only — dark mode wasn't flagged as
+   an issue. Does not touch the outer modal border, tab-strip divider, or
+   input borders — those were explicitly out of scope for this fix. */
+[data-theme='light'] .competencies-modal .competency-tile {
+  --modal-border-secondary: #D6D6D6;
+}
+
+[data-theme='light'] .agent-profile-modal input[type='text']:focus,
+[data-theme='light'] .agent-profile-modal textarea:focus,
+[data-theme='light'] .agent-profile-modal select:focus,
+[data-theme='light'] .team-edit-modal input[type='text']:focus,
+[data-theme='light'] .team-edit-modal textarea:focus,
+[data-theme='light'] .team-edit-modal select:focus,
+[data-theme='light'] .scheduled-task-modal input[type='text']:focus,
+[data-theme='light'] .scheduled-task-modal textarea:focus,
+[data-theme='light'] .scheduled-task-modal select:focus,
+[data-theme='light'] .settings-modal input[type='text']:focus,
+[data-theme='light'] .settings-modal textarea:focus,
+[data-theme='light'] .settings-modal select:focus,
+[data-theme='light'] .rename-thread-modal input[type='text']:focus {
+  border-color: var(--accent);
+}
+
+/* Taller primary inputs / selects (bumps the h-[36px] and h-[38px]
+   utility classes used by TextInput, FormSelect, DirInput, and the
+   model dropdown). Leaves the smaller h-[34px] list-editor inputs
+   alone so they stay visually secondary. */
+.agent-profile-modal input.h-\[38px\],
+.agent-profile-modal select.h-\[38px\],
+.agent-profile-modal select.h-\[36px\],
+.team-edit-modal input.h-\[38px\],
+.team-edit-modal select.h-\[38px\],
+.team-edit-modal select.h-\[36px\] {
+  height: 44px;
+}
+
+/* Artifact print — see `printArtifactWindow` in `lib/windows.ts`.
+   A popped-out artifact window prints itself via native `window.print()`,
+   which captures its whole top frame: the ArtifactPreview toolbar/chat/toast
+   chrome as well as the artifact. Those wrapper elements carry
+   `data-artifact-chrome`, so hide them for print to leave the artifact's own
+   content as the only thing on the page. Only the pop-out ever calls print
+   (the main window's artifact frame can't reach native print), so this rule
+   is effectively scoped to it. */
+@media print {
+  [data-artifact-chrome] {
+    display: none !important;
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "max_tokens": 8192,
+  "messages": [
+    {
+      "content": [
+        {
+          "text": "What files are in the current directory?",
+          "type": "text"
+        }
+      ],
+      "role": "user"
+    },
+    {
+      "content": [
+        {
+          "text": "I'll check that for you.",
+          "type": "text"
+        },
+        {
+          "id": "toolu_01",
+          "input": {
+            "command": "ls"
+          },
+          "name": "Bash",
+          "type": "tool_use"
+        }
+      ],
+      "role": "assistant"
+    },
+    {
+      "content": [
+        {
+          "cache_control": {
+            "type": "ephemeral"
+          },
+          "content": [
+            {
+              "text": "file1.rs\nfile2.rs",
+              "type": "text"
+            }
+          ],
+          "is_error": false,
+          "tool_use_id": "toolu_01",
+          "type": "tool_result"
+        }
+      ],
+      "role": "user"
+    }
+  ],
+  "model": "claude-opus-4-7",
+  "stream": true,
+  "system": [
+    {
+      "cache_control": {
+        "type": "ephemeral"
+      },
+      "text": "You are a helpful assistant.",
+      "type": "text"
+    }
+  ],
+  "tools": [
+    {
+      "description": "Run a bash command",
+      "input_schema": {
+        "properties": {
+          "command": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "type": "object"
+      },
+      "name": "Bash"
+    },
+    {
+      "description": "Read a file",
+      "input_schema": {
+        "properties": {
+          "file_path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_path"
+        ],
+        "type": "object"
+      },
+      "name": "Read"
+    }
+  ]
+}

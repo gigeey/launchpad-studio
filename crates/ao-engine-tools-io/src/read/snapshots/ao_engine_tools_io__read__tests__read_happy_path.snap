@@ -1,0 +1,8 @@
+---
+source: crates/ao-engine-tools-io/src/read/tests.rs
+assertion_line: 86
+expression: text
+---
+	1	alpha
+	2	beta
+	3	gamma

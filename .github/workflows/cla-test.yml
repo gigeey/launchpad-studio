@@ -1,0 +1,32 @@
+name: cla-test
+
+# Tests for the CLA check itself (.github/cla.js).
+#
+# Kept separate from cla.yml on purpose. That workflow runs on
+# `pull_request_target` with a writable token, where every additional step is a
+# chance to execute contributor-supplied code; this one runs on ordinary
+# `pull_request` with a read-only token and no permissions at all.
+#
+# Node 24 is pinned because that is the runtime `actions/github-script@v9`
+# executes on, so the tests run against the same engine as the real check.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Test the CLA check
+        run: node --test .github/cla.test.js

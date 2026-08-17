@@ -1,0 +1,27 @@
+# Tauri dev watcher exclusions.
+#
+# We run the standalone backend (ao-server) outside of `tauri dev` during
+# working sessions so SSE streams and in-memory state survive across iterations.
+# That means rebuilding the Tauri-embedded copy of the engine on every edit to
+# `crates/` is pure waste — it tears down the Tauri shell (and the WebView with
+# it) without changing what the standalone BE is serving.
+#
+# Patterns use .gitignore syntax and are matched against paths within the
+# Cargo workspace that Tauri's file watcher traverses. Keep this list tight:
+# anything ignored here will NOT trigger a Tauri rebuild, so only add paths
+# that are genuinely irrelevant to the Tauri shell binary itself.
+#
+# Still watched (intentional):
+#   - src-tauri/src/**        Tauri shell code: IPC commands, window setup, etc.
+#   - src-tauri/Cargo.toml    Shell dependency changes.
+#   - src-tauri/build.rs      Shell build script.
+
+# Engine + tool crates — owned by the standalone BE in dev.
+crates/
+
+# Workspace integration tests — never linked into the Tauri shell.
+tests/
+
+# Workspace lockfile — flips on any dep bump anywhere in the workspace
+# and would otherwise force a full Tauri rebuild for unrelated changes.
+Cargo.lock

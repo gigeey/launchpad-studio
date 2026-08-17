@@ -1,0 +1,2 @@
+{"type":"system","subtype":"init","apiKeySource":"env","session_id":"session-no-partial-789","model":"claude-sonnet-4-20250514","permissionMode":"default"}
+{"type":"result","subtype":"success","session_id":"session-no-partial-789","cost_usd":0.004,"duration_ms":1500,"result":"Here is the branch creation plan:\n\n1. Create branch `release/v1.0`\n2. Push to remote","usage":{"input_tokens":25,"output_tokens":35,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}

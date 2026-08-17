@@ -1,0 +1,12 @@
+{"type":"system","subtype":"init","apiKeySource":"env","session_id":"session-code-456","model":"claude-sonnet-4-20250514","permissionMode":"default"}
+{"type":"thinking","subtype":"delta","text":"The user is asking me to explain"}
+{"type":"thinking","subtype":"delta","text":" how Rust's ownership model works."}
+{"type":"thinking","subtype":"completed"}
+{"type":"assistant","message":{"id":"msg_02","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4-20250514","stop_reason":null,"usage":{"input_tokens":20,"output_tokens":0}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Rust's ownership"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" model ensures memory safety"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" without a garbage collector."}}
+{"type":"content_block_stop","index":0}
+{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":30}}
+{"type":"result","subtype":"success","session_id":"session-code-456","cost_usd":0.005,"duration_ms":2345,"result":"Rust's ownership model ensures memory safety without a garbage collector.","usage":{"input_tokens":20,"output_tokens":30,"cache_read_input_tokens":10,"cache_creation_input_tokens":4}}

@@ -1,0 +1,20 @@
+name: docs-links
+
+# Fails the build if any relative link in a shipping Markdown file points at a
+# file that will not be published. See dev/check-doc-links.sh for why this
+# is checked against the shipping set rather than against the filesystem.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check-doc-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check documentation links
+        run: ./dev/check-doc-links.sh

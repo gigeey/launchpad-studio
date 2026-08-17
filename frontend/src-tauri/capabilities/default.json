@@ -1,0 +1,34 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window and per-artifact pop-out windows (label pattern \"artifact:*\", see openArtifactWindow/printArtifactWindow in lib/windows.ts) — the pop-out is first-party app chrome (ArtifactWindowView), not the sandboxed artifact iframe it hosts, so it shares the main window's grant rather than getting a narrower one. Needed there for core:webview:allow-print (native print) and core:event (the cross-window print trigger).",
+  "windows": ["main", "artifact:*"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-focus",
+    "core:webview:allow-create-webview-window",
+    "core:webview:allow-print",
+    "opener:default",
+    "dialog:default",
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [{ "path": "/**" }]
+    },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [{ "path": "/**" }]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [{ "path": "/**" }]
+    },
+    {
+      "identifier": "fs:allow-stat",
+      "allow": [{ "path": "/**" }]
+    },
+    "updater:default",
+    "process:default",
+    "notification:default"
+  ]
+}

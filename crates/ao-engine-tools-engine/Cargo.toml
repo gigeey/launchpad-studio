@@ -1,0 +1,28 @@
+[package]
+name = "ao-engine-tools-engine"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[dependencies]
+ao-engine-tools-core = { workspace = true }
+ao-engine-tools-provider-config.workspace = true
+ao-persistence = { workspace = true }
+ao-protocol = { workspace = true }
+ao-search-index = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+chrono-tz = { workspace = true }
+iana-time-zone = { workspace = true }
+lettre = { version = "0.11.22", default-features = false, features = ["smtp-transport", "pool", "tokio1-rustls", "ring", "webpki-roots", "hostname", "builder"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+tempfile = "3"
+tracing-test = "0.2"

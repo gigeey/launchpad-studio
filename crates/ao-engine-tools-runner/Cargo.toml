@@ -1,0 +1,51 @@
+[package]
+name = "ao-engine-tools-runner"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[dependencies]
+ao-engine-tools-core = { workspace = true }
+ao-engine-tools-io = { workspace = true }
+ao-engine-tools-engine = { workspace = true }
+ao-engine-tools-provider-config = { workspace = true }
+ao-persistence = { workspace = true }
+ao-protocol = { workspace = true }
+async-trait = { workspace = true }
+base64 = { workspace = true }
+futures-util = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+globset = "0.4"
+uuid = { workspace = true }
+chrono = { workspace = true }
+jsonschema = "0.30"
+thiserror = { workspace = true }
+tracing = { workspace = true }
+reqwest = { workspace = true, features = ["rustls-tls", "json", "stream"] }
+getrandom = "0.2"
+sha2 = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+insta = "1"
+tracing-subscriber = { workspace = true }
+axum = { workspace = true }
+reqwest = { workspace = true, features = ["rustls-tls", "json", "stream"] }
+tiktoken-rs = { workspace = true }
+tokio = { version = "1", features = ["full", "test-util"] }
+
+[features]
+default = ["mock"]
+# Exposes the scripted `MockProviderClient` to downstream test crates
+# (the crate-level integration test in `tests/end_to_end.rs`). Unit tests
+# inside the lib see the mock unconditionally via `#[cfg(test)]`, so this
+# feature also lets the `tests/` compilation unit pull the mock in.
+# Enabled by default because its only consumers are tests.
+mock = []
+
+[[bin]]
+name = "echo_mcp_server"
+path = "tests/fixtures/echo_mcp_server.rs"

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Launchpad Studio",
+  "version": "0.17.2",
+  "identifier": "com.gigeey.launchpad-studio",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Launchpad Studio",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 940,
+        "minHeight": 640,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "transparent": true,
+        "backgroundColor": "#00000000",
+        "trafficLightPosition": { "x": 16, "y": 24 }
+      }
+    ],
+    "macOSPrivateApi": true,
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": "v1Compatible"
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk1ODEzNEYxMjY3Mzk4QwpSV1NNT1djU1R4TllDV1Z2RzFwbXlyREYwWUY4ckpuMHFrdGJFVGEzRTB0ekYvL3BhV3VVKzViVwo=",
+      "endpoints": [
+        "https://github.com/gigeey/launchpad-studio-releases/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}

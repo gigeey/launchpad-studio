@@ -1,0 +1,60 @@
+[package]
+name = "ao-engine"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[dependencies]
+ao-engine-tools-core = { workspace = true }
+ao-engine-tools-runner = { workspace = true }
+ao-engine-tools-io = { workspace = true }
+ao-engine-tools-engine = { workspace = true }
+ao-engine-tools-provider-anthropic = { path = "../ao-engine-tools-provider-anthropic" }
+ao-engine-tools-provider-openai = { path = "../ao-engine-tools-provider-openai" }
+ao-engine-tools-provider-config = { workspace = true }
+ao-protocol = { workspace = true }
+ao-process = { workspace = true }
+ao-normalizer = { workspace = true }
+ao-persistence = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+async-trait = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+tokio-util = { workspace = true }
+futures-util = { workspace = true }
+reqwest = { workspace = true, features = ["rustls-tls", "json"] }
+dirs = "6"
+nosleep = { workspace = true }
+tempfile = "3"
+dashmap = { workspace = true }
+imap = { version = "3.0.0-alpha.15", default-features = false, features = ["rustls-tls"] }
+mail-parser = { version = "0.11.5", features = ["full_encoding"] }
+# TLS backend pinned to match `reqwest`'s (see workspace root Cargo.toml):
+# `reqwest`'s `rustls-tls` feature resolves to hyper-rustls + `webpki-roots`
+# for certificate verification, so `rustls-tls-webpki-roots` here reuses that
+# same rustls stack and root store instead of pulling in a second TLS
+# backend (native-tls/openssl-sys) or a second root-cert source
+# (rustls-native-certs, which `imap`'s `rustls-connector` dependency already
+# carries independently of this crate's own direct TLS choice).
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
+
+[[bin]]
+name = "fixture_mcp_server"
+path = "tests/fixtures/fixture_mcp_server.rs"
+
+[dev-dependencies]
+ao-engine-tools-core = { workspace = true }
+ao-engine-tools-runner = { workspace = true }
+ao-protocol = { workspace = true }
+async-trait = { workspace = true }
+serde_json = { workspace = true }
+tokio-util = { workspace = true }
+tracing-subscriber = { workspace = true }
+insta = "1"
+wiremock = "0.6"

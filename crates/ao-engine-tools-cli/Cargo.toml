@@ -1,0 +1,35 @@
+[package]
+name = "ao-engine-tools-cli"
+version = "0.1.0"
+edition = "2021"
+
+# The binary lives in a separate crate (not inside ao-engine-tools-runner) because
+# ao-engine-tools-provider-anthropic depends on ao-engine-tools-runner (for the
+# ProviderClient trait), which would create a circular dependency if the binary
+# were placed inside the runner crate. This crate is the leaf node that can depend
+# on both runner and provider-anthropic without introducing a cycle.
+license.workspace = true
+[[bin]]
+name = "ao-engine-tools-cli"
+path = "src/main.rs"
+
+[dependencies]
+ao-engine-tools-runner = { workspace = true }
+ao-engine-tools-provider-anthropic = { path = "../ao-engine-tools-provider-anthropic" }
+ao-engine-tools-provider-config = { workspace = true }
+ao-engine-tools-core = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+uuid = { workspace = true }
+serde_json = { workspace = true }
+# Line editing for the REPL prompt: cursor movement (←/→), in-memory history
+# (↑/↓), Ctrl-A/E, Ctrl-W, Ctrl-K. Auto-detects non-tty stdin and falls back
+# to plain `BufRead::read_line` so the smoke tests (which pipe stdin) still
+# work without any test-side changes.
+rustyline = "14"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true }
+libc = { workspace = true }

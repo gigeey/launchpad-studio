@@ -1,0 +1,145 @@
+name: ci
+
+# Builds and tests the Rust workspace and the frontend on every push and pull
+# request.
+#
+# This workflow is deliberately narrow in three ways. Each is a decision, not an
+# omission, so each is written down here rather than left for a reader to guess
+# at.
+#
+# 1. The Rust job runs on macOS and only macOS. That is the platform this
+#    project is developed, packaged and used on, so a green tick here means the
+#    configuration people actually run still works. The README states plainly
+#    that Linux and Windows application builds are unverified; adding runners
+#    for them would either advertise coverage that has never been exercised or
+#    produce a permanently red badge for platforms nobody is currently fixing.
+#    Adding them later is a good change — it just has to come with someone
+#    willing to keep them green.
+#
+# 2. Neither `cargo fmt --check` nor `cargo clippy` gates a merge, because both
+#    fail on the tree as it stands: 548 of 760 Rust source files differ from
+#    rustfmt's output, and clippy's deny-by-default `approx_constant` fires on a
+#    JSON literal in a test fixture. Enabling either today would mean a red
+#    badge or a ~550-file mechanical reformat, and a diff that size immediately
+#    before a public release buries more than it reveals. Both are worth turning
+#    on; neither is worth turning on this week.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch makes an in-flight run obsolete.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: rust (macos)
+    runs-on: macos-latest
+    env:
+      CARGO_TERM_COLOR: always
+      # A fresh CI checkout can never reuse incremental state, and the
+      # incremental directory is the largest single thing cargo writes for this
+      # workspace — 4.8 GB locally, on its own enough to exhaust a runner disk.
+      CARGO_INCREMENTAL: 0
+      # Full debug info across ~780 crates costs several GB. `line-tables-only`
+      # keeps panic backtraces pointing at real line numbers, which is the only
+      # part of it a CI log has any use for.
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      # Force the file-backed secret vault so the suite never depends on what
+      # happens to be in the runner's login keychain.
+      #
+      # Several ao-engine tests build a provider client, which reaches
+      # SecretVault and, on macOS, the real Keychain. A fresh runner has no
+      # `launchpad_studio_vault` item, so that lookup would simply miss — but
+      # "passes because the runner happened to be empty" is not a property
+      # worth resting a merge gate on. secret_vault's own tests already force
+      # this same backend for the same reason.
+      #
+      # This is a workaround, not a fix. Those tests should set it themselves;
+      # on a developer machine that has used the app, they currently block
+      # indefinitely on a Keychain authorization dialog. See CONTRIBUTING.md's
+      # "Running the tests" section.
+      LAUNCHPAD_SECRET_VAULT_FILE_FALLBACK: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      # rustup is preinstalled on the GitHub runners, so selecting a toolchain
+      # needs no third-party action — every other workflow in this repository
+      # uses first-party actions only, and this one keeps that property.
+      #
+      # `stable` rather than a pinned version, matching what the README asks a
+      # contributor to install. The tradeoff is real: a future stable release
+      # can turn this red without anyone touching the code. That is the point.
+      # If the project stops building on current stable, the README's
+      # "Rust (stable)" line has become false and this is where that should
+      # surface, rather than in a stranger's first clone.
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          rustc --version
+          cargo --version
+
+      # The registry is cached; `target/` is not. GitHub allows 10 GB of cache
+      # per repository, and a debug `target/` for this workspace is a large
+      # enough fraction of that to evict everything else including itself,
+      # making the average run slower rather than faster. Caching the registry
+      # is the part that pays for itself unconditionally.
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      # This also compiles the Tauri application crate. It needs no prior
+      # `npm run build`: without the `custom-protocol` feature the asset
+      # embedder takes its dev-server branch and never reads `frontendDist`,
+      # so the gitignored `frontend/dist` being absent here is fine.
+      - name: Test workspace
+        run: cargo test --workspace
+
+  frontend:
+    name: frontend (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # The three Node majors that package.json's `engines` range admits.
+      # Running all three is what turns that range from an assertion into a
+      # checked claim. Linux is deliberate: none of these tests touch
+      # platform-specific code, so the OS is not what is under test.
+      matrix:
+        node: ['20', '22', '24']
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `npm ci` honours the `engine-strict=true` in frontend/.npmrc, so an
+      # unsupported Node major fails right here with a version error instead of
+      # surfacing later as a stack trace from a transitive dependency.
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npx vitest run

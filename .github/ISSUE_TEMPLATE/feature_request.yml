@@ -1,0 +1,45 @@
+name: Feature request
+description: Suggest something the project should do that it does not do today
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Worth knowing before you write: this project is pre-1.0 and opinionated
+        about scope. A clear description of **the problem you hit** is more
+        persuasive than a proposed solution, because it leaves room for a better
+        answer than either of us has thought of.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you running into?
+      description: >
+        Describe the situation where the current behaviour gets in your way. Be
+        concrete about what you were trying to do.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+      description: If you have a specific design in mind, describe it. It is fine to say you do not.
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: How are you working around it today?
+      description: >
+        If there is a workaround, saying so helps us judge urgency honestly. If
+        there is none and you are blocked, say that too.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and discussions for this idea
+          required: true

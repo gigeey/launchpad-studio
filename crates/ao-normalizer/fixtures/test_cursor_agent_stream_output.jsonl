@@ -1,0 +1,8 @@
+{"type":"system","subtype":"init","session_id":"session-cursor-789","model":"claude-sonnet-4-20250514"}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Explain ownership in Rust"}]}}
+{"type":"thinking","subtype":"delta","text":"The user wants to know about"}
+{"type":"thinking","subtype":"delta","text":" Rust ownership semantics."}
+{"type":"thinking","subtype":"completed"}
+{"type":"assistant","message":{"id":"msg_cursor_01","type":"message","role":"assistant","content":[{"type":"text","text":"Rust uses ownership to manage memory safely without a garbage collector."}],"model":"claude-sonnet-4-20250514","stop_reason":"end_turn","usage":{"input_tokens":25,"output_tokens":15}},"timestamp_ms":1700000000000}
+{"type":"assistant","message":{"id":"msg_cursor_01","type":"message","role":"assistant","content":[{"type":"text","text":"Rust uses ownership to manage memory safely without a garbage collector."}],"model":"claude-sonnet-4-20250514","stop_reason":"end_turn","usage":{"input_tokens":25,"output_tokens":15}}}
+{"type":"result","subtype":"success","session_id":"session-cursor-789","cost_usd":0.003,"duration_ms":1500,"result":"Rust uses ownership to manage memory safely without a garbage collector.","usage":{"input_tokens":25,"output_tokens":15,"cache_read_input_tokens":5,"cache_creation_input_tokens":1}}

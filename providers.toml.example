@@ -1,0 +1,130 @@
+# Launchpad Studio — model provider credentials.
+#
+# You probably do not need this file. The normal way to add an API key is in
+# the app: open the agent editor, pick a provider, and paste the key there.
+# That writes it for you. A missing providers.toml simply means "no provider
+# configured yet" and is not an error.
+#
+# This file exists for headless and CI setups where there is no UI to click.
+#
+#
+# WHERE IT GOES
+#
+#     mkdir -p ~/.launchpad_studio
+#     cp providers.toml.example ~/.launchpad_studio/providers.toml
+#
+# Not the repository root — the app never reads it from there. The directory
+# is `~/.launchpad_studio` unless $LAUNCHPAD_STUDIO_DATA_DIR is set, resolved
+# by `ao_protocol::data_root::resolve_data_root` and joined with the filename
+# in `crates/ao-engine-tools-provider-config/src/path.rs`.
+#
+#
+# HOW TO USE IT
+#
+# Every provider below is commented out, so a freshly copied file configures
+# nothing. Uncomment the block for each provider you actually use by removing
+# the leading `#` from its lines, then fill in `api_key`. Lines beginning
+# `# ` (hash-space) are prose and stay commented.
+#
+# Leave out providers you do not use. A section with no usable key is worse
+# than an absent one: the provider looks configured and fails at request time
+# against the remote API, instead of failing immediately with
+# "provider is not configured in providers.toml".
+#
+# `base_url` and `model` may be omitted — the defaults shown are what the code
+# falls back to. They are recorded here so you can see what you are getting,
+# but a stale `model` pinned in this file is a common source of confusion; if
+# you do not need a specific one, delete the line and let the app choose.
+#
+#
+# WHAT HAPPENS TO api_key ON FIRST LOAD
+#
+# Keys do not stay in this file. The first time the app reads it, each
+# plaintext `api_key` is moved into the OS keychain and — when the keychain is
+# reachable — deleted from the file. If your key line disappears, that is the
+# key being secured, not lost.
+#
+# Where no keychain is reachable (headless Linux, CI containers), the key is
+# copied into a file-backed vault under the same data directory and left here
+# as well, so this file keeps working as a provisioning channel. See
+# `absorb_plaintext_api_keys` in
+# `crates/ao-engine-tools-provider-config/src/lib.rs` for both branches.
+#
+# The app rewrites this file with mode 0600 whenever it touches it. It does
+# not do that to the copy in the repository, so do not put a real key here.
+
+
+# --- Anthropic ---------------------------------------------------------------
+#
+# Three further keys tune the native (API) runner and are all optional:
+#
+#     max_output_tokens = 8192      # cap on response length; Anthropic requires
+#                                    # this on every request, so a missing value
+#                                    # here falls back to the app's own default
+#                                    # (8192), not "unbounded".
+#     max_context_tokens = 100000   # approximate cap on conversation history kept
+#                                    # in context; the oldest turns are trimmed
+#                                    # client-side once the estimate exceeds this.
+#                                    # There is no such request parameter on
+#                                    # Anthropic's API itself.
+#     reasoning_effort = "medium"   # "low" | "medium" | "high" — mapped onto an
+#                                    # extended-thinking token budget. Omit for no
+#                                    # extended thinking by default.
+#
+#[anthropic]
+#api_key = ""
+#base_url = "https://api.anthropic.com"
+#model = "claude-opus-4-7"
+#max_output_tokens = 8192
+#max_context_tokens = 100000
+#reasoning_effort = "medium"
+
+
+# --- OpenAI ------------------------------------------------------------------
+#
+# Two further keys are accepted, and are deliberately left out of the block
+# below because most accounts do not need them. Add them only if yours does,
+# and only with real values — an empty string is not the same as omitting the
+# key. It sends an empty `OpenAI-Organization` / `OpenAI-Project` header,
+# which the API rejects (`crates/ao-engine-tools-provider-openai/src/auth.rs`).
+#
+#     organization = "org-..."
+#     project = "proj-..."
+#
+#[openai]
+#api_key = ""
+#base_url = "https://api.openai.com/v1"
+#model = "gpt-4o"
+#
+# Same three optional tuning knobs as the Anthropic section above.
+# max_output_tokens sends the modern `max_completion_tokens` field — omitted
+# by default, leaving the model's own limit in effect (OpenAI has no
+# required-field constraint here, unlike Anthropic). reasoning_effort maps
+# straight onto OpenAI's own `reasoning_effort` field; sending it to a model
+# without a reasoning channel is rejected by the API, so only set this when
+# `model` above points at one that has one (o-series, gpt-5-thinking, ...).
+#max_output_tokens = 8192
+#max_context_tokens = 100000
+#reasoning_effort = "medium"
+
+
+# --- OpenRouter ----------------------------------------------------------------
+#
+# OpenRouter's chat-completion API is OpenAI-compatible, so it shares the
+# openai provider's client — this section is only its own base_url/model/key
+# plus the same three tuning knobs described above.
+#
+#[openrouter]
+#api_key = ""
+#base_url = "https://openrouter.ai/api/v1"
+#model = "openrouter/auto"
+#max_output_tokens = 8192
+#max_context_tokens = 100000
+#reasoning_effort = "medium"
+
+
+# --- Google Gemini -----------------------------------------------------------
+#[gemini]
+#api_key = ""
+#base_url = "https://generativelanguage.googleapis.com/v1beta"
+#model = "gemini-1.5-pro"

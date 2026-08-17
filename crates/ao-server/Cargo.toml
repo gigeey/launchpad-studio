@@ -1,0 +1,50 @@
+[package]
+name = "ao-server"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[dependencies]
+ao-engine = { workspace = true }
+ao-engine-tools-core = { workspace = true }
+ao-engine-tools-engine = { workspace = true }
+ao-engine-tools-provider-config = { workspace = true }
+ao-engine-tools-runner = { workspace = true }
+ao-mcp-bridge = { workspace = true }
+ao-persistence = { workspace = true }
+ao-protocol = { workspace = true }
+ao-process = { workspace = true }
+axum = { workspace = true }
+tower-http = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+hmac = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+futures-util = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+croner = { workspace = true }
+chrono-tz = { workspace = true }
+dirs = { workspace = true }
+serde_yaml = { workspace = true }
+
+[dev-dependencies]
+async-trait = { workspace = true }
+tempfile = "3"
+# Re-declared with `test-util` on top of the plain `{ workspace = true }`
+# dependency above — see `ao-protocol`'s `[features]` doc comment. Only
+# affects this crate's test/bench/example builds (cargo resolver v2 keeps
+# dev-dependency features out of normal `cargo build`), so it never reaches
+# the shipped `ao-server` binary.
+ao-protocol = { workspace = true, features = ["test-util"] }
+tokio = { version = "1", features = ["test-util"] }
+tokio-util = { workspace = true }
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+hyper = "1"
+wiremock = "0.6"

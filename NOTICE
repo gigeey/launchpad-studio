@@ -1,0 +1,31 @@
+Launchpad Studio
+Copyright 2026 Gigeey
+
+This product is licensed under the Apache License, Version 2.0 (the
+"License"). You may obtain a copy of the License in the LICENSE file
+distributed with this source, or at:
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+This product bundles third-party dependencies obtained from crates.io and
+the npm registry. A complete inventory, with the licence of every direct
+and transitive dependency, is in THIRD-PARTY-NOTICES.md.
+
+Two categories of dependency carry obligations beyond simple attribution
+and are called out here explicitly:
+
+  Mozilla Public License 2.0
+    cssparser, cssparser-macros, dtoa-short, option-ext, selectors
+    These crates are used unmodified. MPL-2.0 is a file-level licence:
+    the files above remain under MPL-2.0, and their source is available
+    from crates.io at the exact versions pinned in Cargo.lock.
+
+  Community Data License Agreement - Permissive 2.0
+    webpki-roots, webpki-root-certs
+    Root certificate data, used unmodified.
+
+Trademark notice: as provided by section 6 of the Apache License 2.0, this
+licence grants no permission to use the trade names, trademarks, or product
+names of the Licensor, including "Launchpad Studio" and "Gigeey", except as
+required for reasonable and customary use in describing the origin of the
+work.

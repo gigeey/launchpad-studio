@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Launchpad Studio (tools)",
+  "identifier": "com.gigeey.launchpad-studio.tools",
+  "build": {
+    "beforeDevCommand": "LAUNCHPAD_VITE_PORT=1430 npm run dev",
+    "devUrl": "http://localhost:1430"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Launchpad Studio (tools-track)",
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "transparent": true,
+        "backgroundColor": "#00000000",
+        "trafficLightPosition": { "x": 16, "y": 24 }
+      }
+    ]
+  }
+}

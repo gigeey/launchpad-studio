@@ -1,0 +1,117 @@
+name: third-party-notices
+
+# Fails the build if THIRD-PARTY-NOTICES.md no longer matches the lockfiles, or
+# if a dependency has arrived under a licence this project does not ship under.
+#
+# WHY THIS IS ITS OWN WORKFLOW
+# ----------------------------
+# The check needs cargo and Node together. ci.yml's rust job is macOS-only and
+# compiles the entire workspace; its frontend job is Linux with no Rust
+# toolchain at all. Folding this into either one would mean installing the other
+# ecosystem there to serve a single step. Keeping it separate also means the one
+# gate in this repository that can fail for a licensing reason rather than a
+# technical one is legible as such in the checks list.
+#
+# WHY THE STEPS ARE IN THIS ORDER
+# -------------------------------
+# The tests run before `--check`, and that ordering is load-bearing. `--check`
+# compares the committed file against what the generator produces right now, so
+# a bug in the generator is baked into both sides of that comparison: a
+# classifier that called every licence permissive would leave `--check` green and
+# the file internally consistent, while the file's promise that nothing here is
+# under the GPL quietly went back to being an unchecked assertion. If the
+# generator is wrong, `--check`'s verdict is worthless, so it must not be the
+# first result a reader sees.
+#
+# The tests need no cargo, no network and no `node_modules`. A failure in the
+# first step is therefore always about this repository's committed files and
+# never about the state of the runner.
+#
+# WHY IT GATES
+# ------------
+# This one gates. It fails on a real question about what this project is allowed
+# to distribute, the answer is reproducible from committed files alone, and the
+# fix is a single command that the failure message names. A check that reports a
+# licensing problem without blocking the merge is a check everyone learns to
+# scroll past.
+#
+# There is no `schedule:` trigger. Nothing this job examines can change unless a
+# lockfile changes, and a lockfile cannot change without a push. A nightly run
+# would only ever re-derive the same answer.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notices-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  notices:
+    name: third-party notices
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Linux, unlike ci.yml's rust job. `cargo metadata` is invoked without
+      # `--filter-platform`, so it returns the resolved graph for every target
+      # rather than for the host, and the npm half reads `package-lock.json`
+      # rather than an installed tree. Neither answer depends on which OS asks
+      # the question — which is exactly the property that makes the inventory
+      # complete for contributors on platforms nobody here builds on.
+      #
+      # Pinned Node rather than the runner image's default, which moves without
+      # notice. 22 is the middle of the three majors frontend's `engines` range
+      # admits. A matrix would buy nothing: this is one script using long-stable
+      # APIs, not the shipping frontend.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # `stable`, for the reason ci.yml's equivalent step sets out at length.
+      # Only `cargo metadata` runs here — nothing is compiled — but the lockfile
+      # is version 4, so a toolchain old enough to reject it needs to fail
+      # visibly rather than be quietly worked around.
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          cargo --version
+
+      # This cache is the entire cost of the job. Reading a crate's declared
+      # licence means reading its manifest, which means having downloaded that
+      # crate, so a cold run fetches all 775 of them — including the Linux- and
+      # Windows-only ones this project never builds. `target/` is deliberately
+      # not cached, and does not need to be: nothing here is compiled.
+      #
+      # Same paths and key shape as ci.yml. No collision with it, because that
+      # job runs on macOS and `runner.os` is part of the key.
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Test the generator
+        run: node --test dev/*.test.mjs
+
+      # Invoked through its shebang rather than as `node dev/...`, so this is
+      # character-for-character the command CONTRIBUTING.md and dev/README.md
+      # tell a contributor to run. If the executable bit were ever lost, the
+      # documented command would break for everyone and this step would be the
+      # thing that noticed.
+      #
+      # `--check` writes nothing. It exits 1 if the file is out of date or a
+      # licence needs a human, and 2 if an input could not be read.
+      - name: Check THIRD-PARTY-NOTICES.md is current
+        run: dev/generate-third-party-notices.mjs --check

@@ -1,0 +1,16 @@
+id: legacy-agent
+name: Legacy Agent
+description: A canonical pre-Loop-F agent profile with no runner_mode field.
+provider:
+  type: Cli
+  command: claude
+  args: []
+  output_format: Text
+  input_mode: Arg
+model: null
+system_prompt: null
+tools: null
+max_instances: 1
+timeout_seconds: 300
+serialize: true
+template: "claude"

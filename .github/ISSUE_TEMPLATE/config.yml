@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/gigeey/launchpad-studio/security/advisories/new
+    about: >
+      Please do not open a public issue for a vulnerability. This opens a private
+      advisory visible only to you and the maintainers. See SECURITY.md.
+  - name: Read the developer guide first
+    url: https://github.com/gigeey/launchpad-studio/blob/main/guide/DEVELOPING.md
+    about: >
+      Build problems, prerequisites, and the test-suite gotchas are covered here.
