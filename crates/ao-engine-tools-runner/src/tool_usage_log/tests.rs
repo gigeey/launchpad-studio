@@ -41,7 +41,11 @@ async fn fewer_than_limit_produces_single_file() {
     for _ in 0..100 {
         writer.emit(make_event());
     }
-    writer.flush().await;
+    let report = writer.flush().await;
+    assert!(
+        report.is_clean(),
+        "telemetry writer lost events: {report:?}"
+    );
 
     let contents = std::fs::read_to_string(&path).unwrap();
     let lines: Vec<&str> = contents.lines().collect();
@@ -62,7 +66,11 @@ async fn rotation_triggered_at_10001_events() {
     for _ in 0..10001 {
         writer.emit(make_event());
     }
-    writer.flush().await;
+    let report = writer.flush().await;
+    assert!(
+        report.is_clean(),
+        "telemetry writer lost events: {report:?}"
+    );
 
     let r = rotated(&path);
     assert!(r.exists(), "rotated file must exist");
