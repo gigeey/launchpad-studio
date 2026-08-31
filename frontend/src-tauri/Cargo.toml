@@ -27,11 +27,34 @@ tauri-plugin-fs = "2.4.5"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-notification = "2"
-rfd = "0.16"
+# Must stay feature-aligned with `tauri-plugin-dialog`, which depends on the
+# same rfd 0.16 with `default-features = false, features = ["gtk3"]`. Cargo
+# unifies features per crate across the whole graph, so taking rfd's defaults
+# here (`xdg-portal` + `wayland` + `async-std`) turned on BOTH backends at once
+# and rfd's build.rs hard-panics on that — "You can't enable both `gtk3` and
+# `xdg-portal` features at once". The panic only fires on Linux/BSD: build.rs
+# matches on CARGO_CFG_TARGET_OS and the macos/windows arms return before the
+# check, so this was invisible on our build machines and broke every Linux
+# contributor on first `cargo build`.
+#
+# gtk3 is also the correct backend for `pick_directory` in src/lib.rs: that
+# command drives the picker synchronously inside `run_on_main_thread`, which
+# suits gtk3's nested-loop dialog. The xdg-portal backend's sync `pick_folder`
+# blocks on an async DBus round trip via pollster, which is the wrong shape for
+# a main-thread call. If you ever flip tauri-plugin-dialog to its `xdg-portal`
+# feature, this line has to move with it.
+rfd = { version = "0.16", default-features = false, features = ["gtk3"] }
 tokio = { version = "1", features = ["full"] }
 axum = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# window-vibrancy and objc are only ever called behind
+# `#[cfg(target_os = "macos")]` in src/lib.rs, each with a
+# `#[cfg(not(target_os = "macos"))]` fallback. Left in `[dependencies]`
+# unconditionally, objc's build script still ran on Linux and hard-failed
+# the link step with `cannot find -lobjc`.
 window-vibrancy = "0.6.0"
 objc = "0.2"
 

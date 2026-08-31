@@ -58,6 +58,41 @@ Launchpad Studio is a [Tauri 2](https://tauri.app/) desktop application.
 > library is used only by `src/components/ui/EmojiPicker.tsx`; if that is ever
 > replaced, delete the override with it.
 
+- **Linux only — Tauri system libraries.** The C-compiler bullet above covers
+  `ao-search-index`'s bundled SQLite; it does not cover Tauri itself. Tauri
+  v2's webview and native dialogs link against GTK and WebKitGTK, which are
+  not part of a base install, so a clean Ubuntu checkout needs one more step
+  before the build in the next section will link:
+
+  ```bash
+  sudo apt-get update
+  sudo apt-get install -y --no-install-recommends \
+    libwebkit2gtk-4.1-dev \
+    libgtk-3-dev \
+    build-essential \
+    curl \
+    wget \
+    file \
+    libxdo-dev \
+    libssl-dev \
+    libayatana-appindicator3-dev \
+    librsvg2-dev
+  ```
+
+  This is the exact list the `rust (linux)` job in
+  [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) installs before it
+  builds, so a clean run of that job is the standing proof this list is
+  complete. `libgtk-3-dev` is listed explicitly even though
+  `libwebkit2gtk-4.1-dev` already pulls it in transitively: `rfd`'s `gtk3`
+  feature (`frontend/src-tauri/Cargo.toml`) links against GTK3 directly for
+  its own file-picker dialog, a requirement independent of whatever
+  webkit2gtk happens to need, so it stays listed rather than being left to a
+  transitive dependency to provide by accident. **The package name is
+  version-sensitive**: `libwebkit2gtk-4.1-dev` is what Ubuntu 24.04 (the
+  `ubuntu-latest` CI runs today) ships. Ubuntu 22.04 and earlier ship
+  `libwebkit2gtk-4.0-dev` instead — a different package, not a version bump —
+  and that older base is not covered by CI or by this instruction.
+
 ## Build & run
 
 ```bash

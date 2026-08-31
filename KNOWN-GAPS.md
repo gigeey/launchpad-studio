@@ -121,10 +121,72 @@ turning on. Neither was worth turning on that week. The reasoning is also record
 
 ## Platform
 
-### Windows and Linux builds are unverified, and the updater is macOS-only
+### Windows builds are unverified, Linux CI covers the build but not the test suite, and the updater is macOS-only
 
-CI builds and tests the application on macOS only, and the published update manifest lists
-`darwin-aarch64` and `darwin-x86_64` and nothing else — so on Linux and Windows every updater
-check fails with `TargetsNotFound` whether or not a newer version exists. The full statement of
-what is and is not verified per platform is in the
+CI tests the application on macOS only (`cargo test --workspace`, `macos-latest`) and, as of
+2026-08-31, also builds — but does not test — it on Linux (`cargo build --workspace
+--all-targets`, `ubuntu-latest` / Ubuntu 24.04, the `rust (linux)` job in
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml)). No CI job touches Windows at all. The
+published update manifest still lists only `darwin-aarch64` and `darwin-x86_64` — so on Linux and
+Windows every updater check fails with `TargetsNotFound` whether or not a newer version exists.
+The full statement of what is and is not verified per platform is in the
 [README](README.md#platform-support-and-known-limitations).
+
+Running the Linux test suite, not just the Linux build, is deliberate tracked follow-up rather
+than an oversight: a real slice of this codebase — process supervision, `flock`-based locking,
+the PTY execution engine — is written against `cfg(unix)` rather than macOS specifically, but
+until now had only ever *executed* on macOS. Compiling cleanly under `cfg(unix)` is not the same
+claim as behavioral parity between BSD-flavored macOS and Linux process, signal, and
+filesystem-locking semantics, and that gap wants someone to actually watch the suite run on Linux
+first and deal with whatever macOS/Linux parity surprises turn up, rather than that showing up as
+a red badge nobody asked for. See the `rust (linux)` job's own comment for the full reasoning.
+
+One Linux buildability blocker fixed 2026-08-31: `frontend/src-tauri/Cargo.toml` listed
+`window-vibrancy` and `objc` as unconditional `[dependencies]`, even though every call site in
+`src/lib.rs` is already `#[cfg(target_os = "macos")]`-gated with a non-macOS fallback branch.
+`objc`'s build script unconditionally emits `cargo:rustc-link-lib=dylib=objc`, so cargo still
+tried to link against Apple's Objective-C runtime on Linux, failing with `cannot find -lobjc`
+unless GNUstep/libobjc-dev was installed. Both crates now live under
+`[target.'cfg(target_os = "macos")'.dependencies]`. Verified: `cargo check -p launchpad-studio
+--all-targets` still passes on macOS; `cargo tree --target x86_64-unknown-linux-gnu` no longer
+lists either crate; `cargo tree --target aarch64-apple-darwin` still lists both; the resulting
+`Cargo.lock` diff carries no package version bumps (its only changes are pre-existing removals
+from the unrelated `rfd` gtk3-feature-pin fix). This does not itself make Linux build clean —
+only removes this one link failure.
+
+A second Linux buildability blocker fixed 2026-08-31: `cargo build --workspace --all-targets`
+failed on Linux with 5 `error: future cannot be sent between threads safely` at every
+`tokio::spawn` site in `ao-engine` that borrows one of `WorkflowQueueManager`,
+`TasklistQueueManager`, `AgentSleepGuardRunner`, or `ScheduleRunner` as `&self` across an
+`.await` (`state.rs:532`/`:1076`, `tasklist_queue_manager.rs:730`, `agent_sleep_guard.rs:44`,
+`schedule_runner.rs:153`). One root cause: all four embed a `sleep_guard: SleepGuard`
+(`crates/ao-engine/src/sleep_guard.rs`) field, whose `handle: Option<NoSleep>` resolves on Linux
+to `nosleep_nix::NoSleep` — a direct dependency of `ao-engine` (`nosleep = { workspace = true }`,
+used to hold the system awake for imminent scheduled/in-flight work) — which embeds a
+`dbus::blocking::Connection` (`nosleep-nix-0.2.1/src/lib.rs:68`). That `Connection`'s
+`filters: RefCell<Filters<...>>` field (`dbus-0.9.10/src/blocking.rs:122`) makes it `Send` but
+not `Sync`, with no manual `unsafe impl` in play — pure auto-trait inference. A bare `!Sync`
+field makes its containing struct `!Sync`, which makes `&Self: !Send`, which fails
+`tokio::spawn`'s `Future: Send` bound. Invisible on macOS because `nosleep`'s platform-`cfg`
+re-export resolves `NoSleep` to `nosleep_mac_sys::NoSleep` there instead — a dbus-free type.
+`notify-rust` (desktop notifications) was the initial suspect but was ruled out: `cargo tree -i
+notify-rust --target x86_64-unknown-linux-gnu` shows it only reaches the `launchpad-studio`
+Tauri binary via `tauri-plugin-notification`, never `ao-engine`. `dbus` also reaches `ao-engine`
+a second way, via `dbus-secret-service` → `keyring` → `ao-engine-tools-provider-config` (OS
+keychain), but that path holds no shared struct field across a `tokio::spawn` boundary today, so
+it wasn't implicated in these 5 errors — worth a `grep -rn "keyring::" crates/ao-engine` sanity
+check if a similar error resurfaces via that path later.
+Fixed by wrapping the field: `handle: Mutex<Option<NoSleep>>` in `sleep_guard.rs`, accessed via
+a private `handle_mut(&mut self)` helper that calls `Mutex::get_mut()` rather than `.lock()` —
+every touch site already holds `&mut self` (verified: `update`, `set_disabled`,
+`set_keep_display_awake`, `update_active`, `acquire`, `release` are all `&mut self`, never
+`&self`, and none of them are `async`), so this is a compile-time exclusivity check with no
+runtime lock ever taken. `Mutex<T>: Sync` whenever `T: Send`, which holds for `Option<NoSleep>`
+per the compiler's own diagnostic (only `&Connection`, not the owned `Connection`, is
+non-`Send`). A feature-flag fix (this PR's `rfd`/gtk3 precedent) was checked and ruled out:
+`nosleep-nix`'s `Cargo.toml` has no `[features]` section, so there is no alternate
+Send+Sync backend to select. Verified: `cargo check -p ao-engine --all-targets` and `cargo check
+--workspace --all-targets` both pass on macOS; `cargo check --target x86_64-unknown-linux-gnu`
+itself is not runnable on a macOS host (fails in `libdbus-sys`'s build script for lack of a
+Linux cross-toolchain/pkg-config sysroot, independent of this fix) — final confirmation is the
+PR's Linux CI job.

@@ -74,7 +74,10 @@ npm run tauri dev
 
 You need Rust (stable), Node.js 20.19+ / 22.13+ / 24+, a C compiler toolchain,
 and roughly **9 GB of free disk** for the first Rust build. `npm install`
-checks your Node version and stops if it is too old.
+checks your Node version and stops if it is too old. On Linux, install Tauri's
+system libraries first — see
+[guide/DEVELOPING.md](guide/DEVELOPING.md#prerequisites) for the single
+copy-pasteable `apt-get install` line.
 
 ## Running the tests
 
