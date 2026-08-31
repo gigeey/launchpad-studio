@@ -12,7 +12,8 @@ pub mod session_child_runner;
 pub use ao_engine_tools_core::background_agents::{
     BackgroundAgentHandle, BackgroundAgentId, BackgroundAgentRegistry, BackgroundAgentSnapshot,
     ChildRunner, NoopSidechainPersister, RegistryError, RunnerEvent, SidechainEventMeta,
-    SidechainPersister, SpawnerError, SubagentSpawner, TaskFinalReport, TaskFinalStatus,
+    SidechainPersistError, SidechainPersister, SpawnerError, SubagentSpawner, TaskFinalReport,
+    TaskFinalStatus,
 };
 pub use file_sidechain_persister::FileSidechainPersister;
 pub use session_child_runner::SessionChildRunner;

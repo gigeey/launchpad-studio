@@ -23,8 +23,10 @@ pub struct ToolUsageEvent {
 /// Sink for tool usage telemetry events.
 ///
 /// Implementations must never block the caller. The concrete
-/// `JsonlTelemetryWriter` uses a bounded async channel and silently drops
-/// events when the channel is full.
+/// `JsonlTelemetryWriter` uses a bounded async channel and drops events when
+/// the channel is full — the caller is still never blocked, but the drop is
+/// counted rather than silent, and is reported via the `FlushReport` returned
+/// by its `flush()`.
 pub trait TelemetryWriter: Send + Sync {
     fn emit(&self, event: ToolUsageEvent);
     /// Returns `true` only for the built-in no-op sink.

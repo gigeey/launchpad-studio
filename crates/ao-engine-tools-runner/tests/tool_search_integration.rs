@@ -808,7 +808,11 @@ async fn test7_telemetry_rotation() {
     for _ in 0..10_001 {
         writer1.emit(make_test_event());
     }
-    writer1.flush().await;
+    let report1 = writer1.flush().await;
+    assert!(
+        report1.is_clean(),
+        "capacity is sized so no event should drop; writer lost events: {report1:?}"
+    );
 
     assert_eq!(
         count_file_lines(&path).await,
@@ -830,7 +834,11 @@ async fn test7_telemetry_rotation() {
     for _ in 0..10_000 {
         writer2.emit(make_test_event());
     }
-    writer2.flush().await;
+    let report2 = writer2.flush().await;
+    assert!(
+        report2.is_clean(),
+        "capacity is sized so no event should drop; writer lost events: {report2:?}"
+    );
 
     assert_eq!(
         count_file_lines(&path).await,

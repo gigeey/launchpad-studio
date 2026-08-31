@@ -44,6 +44,8 @@ pub use handle::{
     BackgroundAgentHandle, BackgroundAgentId, RunnerEvent, TaskFinalReport, TaskFinalStatus,
 };
 pub use registry::{BackgroundAgentRegistry, BackgroundAgentSnapshot, RegistryError};
-pub use sidechain_persister::{NoopSidechainPersister, SidechainEventMeta, SidechainPersister};
+pub use sidechain_persister::{
+    NoopSidechainPersister, SidechainEventMeta, SidechainPersistError, SidechainPersister,
+};
 pub use spawner::{effective_delegate_depth_cap, effective_depth_cap, SpawnerError, SubagentSpawner, DEFAULT_DEPTH_CAP, DELEGATE_DEPTH_CAP};
 pub use subagent_registry::{SubagentRegistry, UnknownSubagentType};

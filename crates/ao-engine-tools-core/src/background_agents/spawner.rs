@@ -473,7 +473,16 @@ impl SubagentSpawner {
             let mut rx = persist_rx;
             loop {
                 match rx.recv().await {
-                    Ok(event) => persister.persist_event(&persist_meta, &event).await,
+                    // Fire-and-forget: this loop only drains the stream, it has no
+                    // caller to report back to. `FileSidechainPersister` already
+                    // logs a WARN with the path and cause at the point of failure
+                    // (see `persist_event`), so the error is not silently lost —
+                    // just not propagated here, matching the pre-existing behavior
+                    // of this sidecar (unlike the spawn-marker write below, which
+                    // does propagate because it feeds a caller-visible return value).
+                    Ok(event) => {
+                        let _ = persister.persist_event(&persist_meta, &event).await;
+                    }
                     Err(broadcast::error::RecvError::Lagged(_)) => continue,
                     Err(broadcast::error::RecvError::Closed) => break,
                 }
@@ -535,7 +544,16 @@ impl SubagentSpawner {
             let mut rx = persist_rx;
             loop {
                 match rx.recv().await {
-                    Ok(event) => persister.persist_event(&persist_meta, &event).await,
+                    // Fire-and-forget: this loop only drains the stream, it has no
+                    // caller to report back to. `FileSidechainPersister` already
+                    // logs a WARN with the path and cause at the point of failure
+                    // (see `persist_event`), so the error is not silently lost —
+                    // just not propagated here, matching the pre-existing behavior
+                    // of this sidecar (unlike the spawn-marker write below, which
+                    // does propagate because it feeds a caller-visible return value).
+                    Ok(event) => {
+                        let _ = persister.persist_event(&persist_meta, &event).await;
+                    }
                     Err(broadcast::error::RecvError::Lagged(_)) => continue,
                     Err(broadcast::error::RecvError::Closed) => break,
                 }
@@ -677,7 +695,16 @@ impl SubagentSpawner {
             let mut rx = persist_rx;
             loop {
                 match rx.recv().await {
-                    Ok(event) => persister.persist_event(&persist_meta, &event).await,
+                    // Fire-and-forget: this loop only drains the stream, it has no
+                    // caller to report back to. `FileSidechainPersister` already
+                    // logs a WARN with the path and cause at the point of failure
+                    // (see `persist_event`), so the error is not silently lost —
+                    // just not propagated here, matching the pre-existing behavior
+                    // of this sidecar (unlike the spawn-marker write below, which
+                    // does propagate because it feeds a caller-visible return value).
+                    Ok(event) => {
+                        let _ = persister.persist_event(&persist_meta, &event).await;
+                    }
                     Err(broadcast::error::RecvError::Lagged(_)) => continue,
                     Err(broadcast::error::RecvError::Closed) => break,
                 }
@@ -777,7 +804,16 @@ impl SubagentSpawner {
             let mut rx = persist_rx;
             loop {
                 match rx.recv().await {
-                    Ok(event) => persister.persist_event(&persist_meta, &event).await,
+                    // Fire-and-forget: this loop only drains the stream, it has no
+                    // caller to report back to. `FileSidechainPersister` already
+                    // logs a WARN with the path and cause at the point of failure
+                    // (see `persist_event`), so the error is not silently lost —
+                    // just not propagated here, matching the pre-existing behavior
+                    // of this sidecar (unlike the spawn-marker write below, which
+                    // does propagate because it feeds a caller-visible return value).
+                    Ok(event) => {
+                        let _ = persister.persist_event(&persist_meta, &event).await;
+                    }
                     Err(broadcast::error::RecvError::Lagged(_)) => continue,
                     Err(broadcast::error::RecvError::Closed) => break,
                 }
@@ -797,6 +833,10 @@ impl SubagentSpawner {
             Ok(report)
         });
 
+        // Cloned before the move below: needed to cancel the child if the
+        // spawn-marker write fails after this point (see the cleanup path
+        // around the marker-write match further down).
+        let child_cancel_for_marker_cleanup = child_cancel.clone();
         let handle = BackgroundAgentHandle {
             id: bg_id.clone(),
             subagent_name: target_name.clone(),
@@ -827,16 +867,26 @@ impl SubagentSpawner {
         // non-terminal `async_launched` event type, so transcript recovery can
         // never mistake this marker for an outcome.
         //
-        // Failure handling is deliberate: the disk is a dependency of the
-        // reporting path, and a delegate must never die because its logging
-        // failed. `persist_event` is infallible by signature and logs its own
-        // WARN (with the underlying io error) on ENOSPC or a bad path, so a
-        // failed marker write degrades to a missing marker — visibly, in the
-        // log — and never propagates. Running it on a separate task additionally
-        // contains a panic from a third-party persister implementation, which is
-        // the only remaining way this could take down a spawn that has already
-        // registered its handle. Awaiting the task preserves the ordering
-        // guarantee above.
+        // Failure handling: `persist_event` returns `Result`, and both the
+        // JoinError (task panic/cancellation) and the inner write error are
+        // propagated to this function's caller below. This call must not hand
+        // back a background-agent id implying the marker is on disk when it is
+        // not — that is exactly the bug the
+        // `async_spawn_writes_non_terminal_marker_before_returning` regression
+        // test caught: an existing-but-empty transcript file, with the caller
+        // told nothing. Running the write on a separate task still contains a
+        // panic from a third-party persister implementation to that task rather
+        // than this one; awaiting it preserves the ordering guarantee above.
+        //
+        // By this point the child has already been registered in
+        // `parent_ctx.background_agents` (the `insert` above) and its task is
+        // already running, so returning `Err` on marker failure alone would
+        // orphan it: the caller gets no id and thus no way to poll or cancel
+        // an agent that keeps executing in the background. Resolved below —
+        // both marker-failure branches cancel `child_cancel` and remove the
+        // handle from the registry before returning `Err`, so the spawn is
+        // atomic: either the agent is running and recorded, or nothing is
+        // left running.
         let marker_persister = self.sidechain_persister.clone();
         let marker_meta = SidechainEventMeta {
             background_agent_id: bg_id.clone(),
@@ -850,18 +900,39 @@ impl SubagentSpawner {
             parent_agent_id: parent_ctx.agent_id.clone(),
             spawned_at,
         };
-        if let Err(e) = tokio::spawn(async move {
+        // On either failure branch below, the child task registered into
+        // `parent_ctx.background_agents` above is still running and this
+        // function is about to hand the caller an `Err` with no id to poll
+        // or cancel it by. Make the spawn atomic: cancel the child and undo
+        // the registry insert (single cleanup path, both branches funnel
+        // through it) before returning, so a marker-write failure can never
+        // leave an orphaned, untracked agent behind.
+        if let Err(marker_err) = match tokio::spawn(async move {
             marker_persister
                 .persist_event(&marker_meta, &marker_event)
-                .await;
+                .await
         })
         .await
         {
-            tracing::warn!(
-                delegation_id = %delegation_id,
-                "sidechain: spawn marker task did not complete ({e}); \
-                 transcript will be created on the child's first event instead"
-            );
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(e)) => {
+                tracing::warn!(
+                    delegation_id = %delegation_id,
+                    "sidechain: failed to persist spawn marker: {e}"
+                );
+                Err(format!("failed to persist spawn marker for delegation: {e}"))
+            }
+            Err(e) => {
+                tracing::warn!(
+                    delegation_id = %delegation_id,
+                    "sidechain: spawn marker task did not complete ({e})"
+                );
+                Err(format!("spawn marker task panicked or was cancelled: {e}"))
+            }
+        } {
+            child_cancel_for_marker_cleanup.cancel();
+            parent_ctx.background_agents.remove(&bg_id).await;
+            return Err(ToolOutput::error(marker_err, false));
         }
 
         // Bracket the background run with a "started" notification, mirroring
@@ -875,16 +946,23 @@ impl SubagentSpawner {
         }
 
         // Resolve transcript path now (before the spawn) so both the
-        // notification task and the immediate return value share the same string.
+        // notification task and the immediate return value share the same
+        // string. Propagate a `resolve_data_root()` failure instead of
+        // `unwrap_or_default()`-ing to an empty string: an empty path is a
+        // plausible-looking value that silently lies about where (or whether)
+        // the transcript lives, rather than surfacing the resolution failure.
         let transcript_path = resolve_data_root()
-            .map(|r| {
-                r.join("messages")
-                    .join("data")
-                    .join(format!("{}.jsonl", delegation_id))
-                    .display()
-                    .to_string()
-            })
-            .unwrap_or_default();
+            .map_err(|e| {
+                ToolOutput::error(
+                    format!("failed to resolve data root for transcript path: {e}"),
+                    false,
+                )
+            })?
+            .join("messages")
+            .join("data")
+            .join(format!("{}.jsonl", delegation_id))
+            .display()
+            .to_string();
 
         // Completion-notification task. Fires once when the delegate reaches a
         // terminal state and dispatches to two notification channels:
