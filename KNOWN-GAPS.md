@@ -121,10 +121,35 @@ turning on. Neither was worth turning on that week. The reasoning is also record
 
 ## Platform
 
-### Windows and Linux builds are unverified, and the updater is macOS-only
+### Windows builds are unverified, Linux CI covers the build but not the test suite, and the updater is macOS-only
 
-CI builds and tests the application on macOS only, and the published update manifest lists
-`darwin-aarch64` and `darwin-x86_64` and nothing else — so on Linux and Windows every updater
-check fails with `TargetsNotFound` whether or not a newer version exists. The full statement of
-what is and is not verified per platform is in the
+CI tests the application on macOS only (`cargo test --workspace`, `macos-latest`) and, as of
+2026-08-31, also builds — but does not test — it on Linux (`cargo build --workspace
+--all-targets`, `ubuntu-latest` / Ubuntu 24.04, the `rust (linux)` job in
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml)). No CI job touches Windows at all. The
+published update manifest still lists only `darwin-aarch64` and `darwin-x86_64` — so on Linux and
+Windows every updater check fails with `TargetsNotFound` whether or not a newer version exists.
+The full statement of what is and is not verified per platform is in the
 [README](README.md#platform-support-and-known-limitations).
+
+Running the Linux test suite, not just the Linux build, is deliberate tracked follow-up rather
+than an oversight: a real slice of this codebase — process supervision, `flock`-based locking,
+the PTY execution engine — is written against `cfg(unix)` rather than macOS specifically, but
+until now had only ever *executed* on macOS. Compiling cleanly under `cfg(unix)` is not the same
+claim as behavioral parity between BSD-flavored macOS and Linux process, signal, and
+filesystem-locking semantics, and that gap wants someone to actually watch the suite run on Linux
+first and deal with whatever macOS/Linux parity surprises turn up, rather than that showing up as
+a red badge nobody asked for. See the `rust (linux)` job's own comment for the full reasoning.
+
+One Linux buildability blocker fixed 2026-08-31: `frontend/src-tauri/Cargo.toml` listed
+`window-vibrancy` and `objc` as unconditional `[dependencies]`, even though every call site in
+`src/lib.rs` is already `#[cfg(target_os = "macos")]`-gated with a non-macOS fallback branch.
+`objc`'s build script unconditionally emits `cargo:rustc-link-lib=dylib=objc`, so cargo still
+tried to link against Apple's Objective-C runtime on Linux, failing with `cannot find -lobjc`
+unless GNUstep/libobjc-dev was installed. Both crates now live under
+`[target.'cfg(target_os = "macos")'.dependencies]`. Verified: `cargo check -p launchpad-studio
+--all-targets` still passes on macOS; `cargo tree --target x86_64-unknown-linux-gnu` no longer
+lists either crate; `cargo tree --target aarch64-apple-darwin` still lists both; the resulting
+`Cargo.lock` diff carries no package version bumps (its only changes are pre-existing removals
+from the unrelated `rfd` gtk3-feature-pin fix). This does not itself make Linux build clean —
+only removes this one link failure.

@@ -7,14 +7,23 @@ name: ci
 # omission, so each is written down here rather than left for a reader to guess
 # at.
 #
-# 1. The Rust job runs on macOS and only macOS. That is the platform this
-#    project is developed, packaged and used on, so a green tick here means the
-#    configuration people actually run still works. The README states plainly
-#    that Linux and Windows application builds are unverified; adding runners
-#    for them would either advertise coverage that has never been exercised or
-#    produce a permanently red badge for platforms nobody is currently fixing.
-#    Adding them later is a good change — it just has to come with someone
-#    willing to keep them green.
+# 1. The Rust job runs on macOS and Linux, and both are gated — a red run on
+#    either blocks a merge. macOS is the platform this project is developed,
+#    packaged and used on, so a green tick there means the configuration
+#    people actually run still works. Linux joined it once two build bugs
+#    (an rfd gtk3/xdg-portal feature-unification panic, and ungated
+#    macOS-only objc/window-vibrancy deps) shipped undetected, because
+#    nothing in CI had ever compiled this workspace's Rust code on Linux —
+#    the `frontend` job below runs on ubuntu-latest, but it only ever runs
+#    `npm`/`vitest`, never `cargo`. Both bugs were fixable, and are fixed;
+#    the owner decided Linux is now a Tier 1, CI-tested platform, on the same
+#    terms macOS earned that status under: don't advertise coverage nobody is
+#    exercising. Windows is not gated here. The README still states plainly
+#    that Windows application builds are unverified, and that stays true —
+#    nobody has yet done for Windows what was just done for Linux: hunted
+#    down its build-breaking bugs and committed to keeping a runner green
+#    afterward. Adding one later is a good change — it just has to come with
+#    someone willing to keep it green, the same bar Linux just cleared.
 #
 # 2. Neither `cargo fmt --check` nor `cargo clippy` gates a merge, because both
 #    fail on the tree as it stands: 548 of 760 Rust source files differ from
@@ -108,6 +117,111 @@ jobs:
       # so the gitignored `frontend/dist` being absent here is fine.
       - name: Test workspace
         run: cargo test --workspace
+
+  rust-linux:
+    name: rust (linux)
+    runs-on: ubuntu-latest
+    env:
+      # Same three settings as the `rust (macos)` job above, for the same
+      # platform-agnostic reasons: a fresh checkout still can't reuse
+      # incremental state, full debug info across ~780 crates still costs
+      # several GB, and a CI log still only needs panic backtraces pointing
+      # at real line numbers.
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: 0
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      #
+      # LAUNCHPAD_SECRET_VAULT_FILE_FALLBACK is deliberately NOT set here,
+      # unlike the macOS job above. Two independent reasons, either one
+      # sufficient on its own:
+      #
+      # 1. SecretVault::open()'s keychain_forbidden() check
+      #    (ao-engine-tools-provider-config/src/secret_vault.rs) already
+      #    treats the `CI` environment variable as an unconditional kill
+      #    switch on every platform, not just macOS — and GitHub Actions sets
+      #    `CI=true` on every hosted runner automatically. The file-backed
+      #    vault is already forced here without this workflow having to say
+      #    so. (This makes the macOS job's explicit setting above redundant
+      #    too, but that predates the `CI`-var check and is out of scope for
+      #    this change.)
+      # 2. Independently of (1): Linux does compile a real keyring backend
+      #    for this workspace (`linux-native-sync-persistent` — Secret
+      #    Service over D-Bus, with a keyutils fallback; see the workspace
+      #    Cargo.toml's keyring feature comment), so this isn't a case of
+      #    Linux having no keychain code path to force away from. It's that
+      #    this specific runner never reaches it: ubuntu-latest runs no
+      #    session D-Bus / Secret Service daemon, so
+      #    SecretVault::open()'s keychain_available() probe fails and falls
+      #    back to the file backend on its own, even if `CI` weren't set.
+    steps:
+      - uses: actions/checkout@v4
+
+      # Tauri v2's system dependencies for a Linux build. libgtk-3-dev is
+      # listed explicitly even though libwebkit2gtk-4.1-dev already pulls it
+      # in transitively: rfd's `gtk3` feature (frontend/src-tauri/Cargo.toml)
+      # links against GTK3 directly for its own file-picker dialog, a
+      # requirement independent of whatever webkit2gtk happens to need, so it
+      # stays listed rather than being left to a transitive dependency to
+      # provide by accident.
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      # Same rustup approach as the macOS job above, for the same reasons —
+      # see its comment: first-party rustup rather than a third-party
+      # toolchain action, `stable` rather than a pinned version.
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          rustc --version
+          cargo --version
+
+      # Same cache step as the macOS job above, reused rather than
+      # duplicated logic. Its key already includes `runner.os`, so this run
+      # gets its own cache entry and can't collide with or evict the macOS
+      # job's.
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      # `cargo build`, not `cargo test --workspace` like the macOS job —
+      # deliberately, not an oversight. This is the first time this
+      # workspace's test suite would ever run on Linux at all. A large slice
+      # of it — kill_tree, the process supervisor, workspace_lock's flock
+      # usage, the bash/PTY execution engine, all gated `#[cfg(unix)]` rather
+      # than macOS-only — was written and has, until now, only ever executed
+      # on macOS; compiling cleanly under `cfg(unix)` is not the same claim
+      # as behavioral parity between BSD-flavored macOS and Linux process,
+      # signal, and filesystem-locking semantics. `cargo build --workspace
+      # --all-targets` still compiles every test target, so it still proves
+      # the two Linux-specific bugs this job exists to catch (the rfd
+      # gtk3/xdg-portal feature-unification panic, the ungated macOS-only
+      # objc/window-vibrancy deps) stay fixed, and that nothing else in the
+      # dependency graph is Linux-broken at compile time. Running the tests
+      # themselves on Linux is deliberate, tracked follow-up work — it wants
+      # someone to actually watch the suite run here first and deal with
+      # whatever macOS/Linux parity surprises turn up, rather than that
+      # showing up as a red badge nobody asked for.
+      - name: Build workspace
+        run: cargo build --workspace --all-targets
 
   frontend:
     name: frontend (node ${{ matrix.node }})

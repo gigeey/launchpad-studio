@@ -25,7 +25,7 @@
 <p align="center">
   <a href="https://github.com/gigeey/launchpad-studio/actions/workflows/ci.yml"><img src="https://github.com/gigeey/launchpad-studio/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License: Apache 2.0"></a>
-  <img src="https://img.shields.io/badge/platform-macOS-lightgrey" alt="Platform: macOS">
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey" alt="Platform: macOS, Linux">
   <img src="https://img.shields.io/badge/built%20with-Tauri%202%20%2B%20Rust%20%2B%20React-orange" alt="Built with Tauri 2, Rust and React">
 </p>
 
@@ -77,8 +77,9 @@ if you are not on macOS.
 
 **Prerequisites:** Rust (stable), Node.js 20.19+ / 22.13+ / 24+, a C compiler toolchain, and
 about **9 GB of free disk** for the first Rust build. `npm install` checks the Node version and
-stops if it is too old. [guide/DEVELOPING.md](guide/DEVELOPING.md) has the reason behind each
-requirement.
+stops if it is too old. On Linux you also need a handful of Tauri system libraries before this
+will link — see [guide/DEVELOPING.md](guide/DEVELOPING.md#prerequisites) for the one-line
+`apt-get install`, and for the reason behind every requirement here.
 
 ```bash
 git clone https://github.com/gigeey/launchpad-studio.git
@@ -451,13 +452,32 @@ packaged macOS builds are published.
 ## Platform support and known limitations
 
 **On platform support, precisely.** Launchpad Studio is developed and used on **macOS**, and
-macOS is the platform it is packaged for. The Windows and Linux paths are not an afterthought —
-credential storage is configured with a native backend for each of the three, and Tauri targets
-all three — but they are far less exercised, and **CI builds and tests the application on macOS
-only**. The frontend test suite is also run on Linux against each supported Node version, but it
-touches no platform-specific code, so a green tick there says nothing about a Linux build. Treat
-a Windows or Linux build as something that ought to work rather than something that is verified,
-and please open an issue when it does not.
+macOS is the platform it is packaged for. Credential storage is configured with a native backend
+for all three platforms, and Tauri targets all three, but "targets" and "verified" are different
+claims. Here is exactly what CI checks on each, no more and no less:
+
+- **macOS — Tier 1.** CI runs `cargo test --workspace` on `macos-latest`: the full Rust test
+  suite, on the platform the app is actually developed, packaged, and used on.
+- **Linux — Tier 1 as of the `rust (linux)` job** in
+  [`.github/workflows/ci.yml`](.github/workflows/ci.yml). It runs on `ubuntu-latest` (currently
+  Ubuntu 24.04) and runs `cargo build --workspace --all-targets` on every push and pull request —
+  every crate, and every test target, compiles cleanly there. **It does not run the test suite.**
+  That's a deliberate line, not an oversight: a real slice of this codebase — process
+  supervision, `flock`-based locking, the PTY execution engine — is written against `cfg(unix)`
+  rather than macOS specifically, but until now had only ever *executed* on macOS, and compiling
+  cleanly under `cfg(unix)` is not the same claim as behavioral parity between BSD-flavored macOS
+  and Linux process, signal, and filesystem semantics. See the job's own comment in the workflow
+  file for the full reasoning. The frontend test suite (`npx vitest run`) does run on Linux,
+  against every supported Node version, but it touches no platform-specific code, so that was
+  never evidence about the Rust build either way. Linux build prerequisites — the Tauri system
+  libraries CI installs before it builds — are in
+  [guide/DEVELOPING.md](guide/DEVELOPING.md#prerequisites).
+- **Windows — unverified.** No CI job builds or tests on Windows. Treat a Windows build as
+  something that ought to work rather than something that is verified, and please open an issue
+  when it does not.
+
+Neither Linux nor Windows has a packaged binary published — see [Get the app](#1-get-the-app) —
+so building from source is the only route on either.
 
 **The version check can lock a source build out of the app.** If your checkout is far enough
 behind the latest published release, the app replaces its entire UI with an update prompt that
