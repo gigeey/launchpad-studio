@@ -61,8 +61,12 @@ fn generic_normalizer_finalize_with_content_and_stderr() {
 
     let events = normalizer.finalize(Some(1), "error occurred");
     assert_eq!(events.len(), 2);
-    assert!(matches!(&events[0], AgentEventPayload::TextComplete { text } if text == "partial output"));
-    assert!(matches!(&events[1], AgentEventPayload::Error { message, .. } if message == "error occurred"));
+    assert!(
+        matches!(&events[0], AgentEventPayload::TextComplete { text } if text == "partial output")
+    );
+    assert!(
+        matches!(&events[1], AgentEventPayload::Error { message, .. } if message == "error occurred")
+    );
 }
 
 #[test]
@@ -123,15 +127,13 @@ fn claude_json_mode_feed_fixture_and_finalize() {
     // emits the real Anthropic field names; `cache_creation_input_tokens`
     // is non-zero on the result event to stand in for a first-turn write.
     // total = input + output + cache_read = 15 + 25 + 5.
-    assert!(
-        matches!(&events[1], AgentEventPayload::Usage {
+    assert!(matches!(&events[1], AgentEventPayload::Usage {
             input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, total_tokens
         } if *input_tokens == 15
             && *output_tokens == 25
             && *cache_read_tokens == 5
             && *cache_creation_tokens == 2
-            && *total_tokens == 45)
-    );
+            && *total_tokens == 45));
 }
 
 #[test]
@@ -300,16 +302,16 @@ fn claude_stream_json_thinking_delta_emits_thinking_event() {
     let mut normalizer = crate::claude::ClaudeNormalizer::new(&config);
 
     // Thinking delta event should emit ThinkingDelta
-    let events = normalizer
-        .process_chunk("{\"type\":\"thinking\",\"subtype\":\"delta\",\"text\":\"Let me think about this...\"}\n");
+    let events = normalizer.process_chunk(
+        "{\"type\":\"thinking\",\"subtype\":\"delta\",\"text\":\"Let me think about this...\"}\n",
+    );
     assert_eq!(events.len(), 1);
     assert!(
         matches!(&events[0], AgentEventPayload::ThinkingDelta { text } if text == "Let me think about this...")
     );
 
     // Thinking completed event should be a no-op
-    let events = normalizer
-        .process_chunk("{\"type\":\"thinking\",\"subtype\":\"completed\"}\n");
+    let events = normalizer.process_chunk("{\"type\":\"thinking\",\"subtype\":\"completed\"}\n");
     assert!(events.is_empty());
 }
 
@@ -336,9 +338,7 @@ fn claude_sse_thinking_block_emits_start_delta_end() {
     events.extend(normalizer.process_chunk(
         "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" second\"}}\n",
     ));
-    events.extend(normalizer.process_chunk(
-        "{\"type\":\"content_block_stop\",\"index\":0}\n",
-    ));
+    events.extend(normalizer.process_chunk("{\"type\":\"content_block_stop\",\"index\":0}\n"));
 
     let kinds: Vec<&'static str> = events
         .iter()
@@ -351,17 +351,14 @@ fn claude_sse_thinking_block_emits_start_delta_end() {
         .collect();
     assert_eq!(kinds, vec!["start", "delta", "delta", "end"]);
     // Delta payloads carry the raw reasoning text verbatim.
-    assert!(
-        matches!(&events[1], AgentEventPayload::ThinkingDelta { text } if text == "first")
-    );
-    assert!(
-        matches!(&events[2], AgentEventPayload::ThinkingDelta { text } if text == " second")
-    );
+    assert!(matches!(&events[1], AgentEventPayload::ThinkingDelta { text } if text == "first"));
+    assert!(matches!(&events[2], AgentEventPayload::ThinkingDelta { text } if text == " second"));
     // Elapsed value is non-negative; we don't pin a specific number
     // because Instant::elapsed() depends on the host scheduler.
-    assert!(
-        matches!(&events[3], AgentEventPayload::ThinkingEnded { elapsed_ms: _ })
-    );
+    assert!(matches!(
+        &events[3],
+        AgentEventPayload::ThinkingEnded { elapsed_ms: _ }
+    ));
 }
 
 /// `display = "omitted"` path: the model still engages its reasoning
@@ -384,14 +381,15 @@ fn claude_sse_thinking_block_omitted_display_still_emits_start_end() {
     events.extend(normalizer.process_chunk(
         "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"signature_delta\",\"signature\":\"abc\"}}\n",
     ));
-    events.extend(normalizer.process_chunk(
-        "{\"type\":\"content_block_stop\",\"index\":0}\n",
-    ));
+    events.extend(normalizer.process_chunk("{\"type\":\"content_block_stop\",\"index\":0}\n"));
 
     // Exactly two canonical events: start + end. No delta.
     assert_eq!(events.len(), 2);
     assert!(matches!(&events[0], AgentEventPayload::ThinkingStarted));
-    assert!(matches!(&events[1], AgentEventPayload::ThinkingEnded { .. }));
+    assert!(matches!(
+        &events[1],
+        AgentEventPayload::ThinkingEnded { .. }
+    ));
 }
 
 #[test]
@@ -468,9 +466,15 @@ fn claude_code_stream_fixture_full_pipeline() {
         .filter(|e| matches!(e, AgentEventPayload::TextDelta { .. }))
         .collect();
     assert_eq!(text_deltas.len(), 3);
-    assert!(matches!(&text_deltas[0], AgentEventPayload::TextDelta { text } if text == "Rust's ownership"));
-    assert!(matches!(&text_deltas[1], AgentEventPayload::TextDelta { text } if text == " model ensures memory safety"));
-    assert!(matches!(&text_deltas[2], AgentEventPayload::TextDelta { text } if text == " without a garbage collector."));
+    assert!(
+        matches!(&text_deltas[0], AgentEventPayload::TextDelta { text } if text == "Rust's ownership")
+    );
+    assert!(
+        matches!(&text_deltas[1], AgentEventPayload::TextDelta { text } if text == " model ensures memory safety")
+    );
+    assert!(
+        matches!(&text_deltas[2], AgentEventPayload::TextDelta { text } if text == " without a garbage collector.")
+    );
 
     // Verify session_id is extracted (from the system init event)
     assert_eq!(
@@ -512,7 +516,11 @@ fn claude_stream_json_no_partial_messages_emits_text_from_result() {
         .iter()
         .filter(|e| matches!(e, AgentEventPayload::TextDelta { .. }))
         .collect();
-    assert_eq!(text_deltas.len(), 1, "Expected exactly 1 TextDelta from result event");
+    assert_eq!(
+        text_deltas.len(),
+        1,
+        "Expected exactly 1 TextDelta from result event"
+    );
     assert!(
         matches!(&text_deltas[0], AgentEventPayload::TextDelta { text }
             if text == "Here is the branch creation plan:\n\n1. Create branch `release/v1.0`\n2. Push to remote")
@@ -577,7 +585,11 @@ fn claude_stream_json_no_partial_messages_with_assistant_event() {
         .iter()
         .filter(|e| matches!(e, AgentEventPayload::TextDelta { .. }))
         .collect();
-    assert_eq!(result_text_deltas.len(), 0, "Result text should be deduped when assistant already emitted it");
+    assert_eq!(
+        result_text_deltas.len(),
+        0,
+        "Result text should be deduped when assistant already emitted it"
+    );
 }
 
 #[test]
@@ -605,9 +617,8 @@ fn claude_stream_json_no_partial_messages_multi_turn_with_tool_use() {
     all_events.extend(normalizer.process_chunk(
         &format!("{}\n", r#"{"type":"content_block_start","content_block":{"type":"tool_use","id":"tool_1","name":"Bash"}}"#),
     ));
-    all_events.extend(normalizer.process_chunk(
-        &format!("{}\n", r#"{"type":"content_block_stop"}"#),
-    ));
+    all_events
+        .extend(normalizer.process_chunk(&format!("{}\n", r#"{"type":"content_block_stop"}"#)));
 
     // Tool result — Claude CLI feeds this back as a top-level `"user"`
     // event, never as a `content_block_start` (that shape never occurs
@@ -623,13 +634,18 @@ fn claude_stream_json_no_partial_messages_multi_turn_with_tool_use() {
     let tool_completions: Vec<(String, Option<String>)> = all_events
         .iter()
         .filter_map(|e| match e {
-            AgentEventPayload::ToolCallCompleted { tool_name, output, .. } => {
-                Some((tool_name.clone(), output.clone()))
-            }
+            AgentEventPayload::ToolCallCompleted {
+                tool_name, output, ..
+            } => Some((tool_name.clone(), output.clone())),
             _ => None,
         })
         .collect();
-    assert_eq!(tool_completions.len(), 1, "expected exactly one ToolCallCompleted, got: {:?}", tool_completions);
+    assert_eq!(
+        tool_completions.len(),
+        1,
+        "expected exactly one ToolCallCompleted, got: {:?}",
+        tool_completions
+    );
     assert_eq!(tool_completions[0].0, "Bash");
     assert_eq!(tool_completions[0].1.as_deref(), Some("git version 2.45.0"));
 
@@ -652,7 +668,12 @@ fn claude_stream_json_no_partial_messages_multi_turn_with_tool_use() {
         })
         .collect();
 
-    assert_eq!(text_deltas.len(), 2, "Expected 2 TextDeltas (one per turn), got: {:?}", text_deltas);
+    assert_eq!(
+        text_deltas.len(),
+        2,
+        "Expected 2 TextDeltas (one per turn), got: {:?}",
+        text_deltas
+    );
     assert_eq!(text_deltas[0], "Let me check git access now.");
     assert_eq!(text_deltas[1], "Git is available. Version: 2.45.0");
 
@@ -723,9 +744,16 @@ fn claude_tool_result_resolves_real_name_via_user_event() {
         .iter()
         .filter(|e| matches!(e, AgentEventPayload::ToolCallCompleted { .. }))
         .collect();
-    assert_eq!(completed.len(), 1, "expected exactly one ToolCallCompleted, got: {:?}", events);
+    assert_eq!(
+        completed.len(),
+        1,
+        "expected exactly one ToolCallCompleted, got: {:?}",
+        events
+    );
     match completed[0] {
-        AgentEventPayload::ToolCallCompleted { tool_name, output, .. } => {
+        AgentEventPayload::ToolCallCompleted {
+            tool_name, output, ..
+        } => {
             assert_eq!(tool_name, "ArtifactWrite");
             assert_eq!(output.as_deref(), Some("{\"id\":\"artifact-1\"}"));
         }
@@ -798,9 +826,7 @@ fn registry_cursor_agent_normalizer_overrides_unknown_command() {
         "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"cursor works\"}],\"model\":\"claude-sonnet-4-20250514\",\"stop_reason\":\"end_turn\",\"usage\":{\"input_tokens\":10,\"output_tokens\":5}},\"timestamp_ms\":1700000000000}\n",
     );
     assert_eq!(events.len(), 2); // TextDelta + Usage
-    assert!(
-        matches!(&events[0], AgentEventPayload::TextDelta { text } if text == "cursor works")
-    );
+    assert!(matches!(&events[0], AgentEventPayload::TextDelta { text } if text == "cursor works"));
 }
 
 #[test]
@@ -911,7 +937,9 @@ fn cursor_agent_dedup_skips_second_assistant_event() {
         .filter(|e| matches!(e, AgentEventPayload::TextDelta { .. }))
         .collect();
     assert_eq!(text_deltas1.len(), 1);
-    assert!(matches!(&text_deltas1[0], AgentEventPayload::TextDelta { text } if text == "hello world"));
+    assert!(
+        matches!(&text_deltas1[0], AgentEventPayload::TextDelta { text } if text == "hello world")
+    );
 
     // Second assistant event (duplicate, no timestamp_ms) — should NOT emit TextDelta
     let events2 = normalizer.process_chunk(
@@ -1091,8 +1119,10 @@ fn codex_jsonl_fixture_full_pipeline() {
         .collect();
     assert_eq!(tool_starts.len(), 1);
     assert!(
-        matches!(&tool_starts[0], AgentEventPayload::ToolCallStarted { tool_name, .. }
-            if tool_name == "bash -lc 'ls src/'")
+        matches!(&tool_starts[0], AgentEventPayload::ToolCallStarted { tool_name, tool_input, tool_use_id, .. }
+            if tool_name == "Bash"
+                && tool_input.as_ref().and_then(|input| input.get("command")).and_then(|v| v.as_str()) == Some("bash -lc 'ls src/'")
+                && tool_use_id.as_deref() == Some("item_1"))
     );
 
     // Verify ToolCallCompleted from command_execution item.completed
@@ -1102,8 +1132,9 @@ fn codex_jsonl_fixture_full_pipeline() {
         .collect();
     assert_eq!(tool_completes.len(), 1);
     assert!(
-        matches!(&tool_completes[0], AgentEventPayload::ToolCallCompleted { tool_name, output, .. }
-            if tool_name == "bash -lc 'ls src/'" && output.as_deref() == Some("main.rs\nlib.rs\n"))
+        matches!(&tool_completes[0], AgentEventPayload::ToolCallCompleted { tool_name, output, tool_use_id, is_error }
+            if tool_name == "Bash" && output.as_deref() == Some("main.rs\nlib.rs\n")
+                && tool_use_id.as_deref() == Some("item_1") && !is_error)
     );
 
     // Verify TextDelta from agent_message (one event, all-at-once)
@@ -1125,15 +1156,13 @@ fn codex_jsonl_fixture_full_pipeline() {
         .filter(|e| matches!(e, AgentEventPayload::Usage { .. }))
         .collect();
     assert_eq!(usage_events.len(), 1);
-    assert!(
-        matches!(&usage_events[0], AgentEventPayload::Usage {
+    assert!(matches!(&usage_events[0], AgentEventPayload::Usage {
             input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, total_tokens
         } if *input_tokens == 1200
             && *output_tokens == 45
             && *cache_read_tokens == 200
             && *cache_creation_tokens == 0
-            && *total_tokens == 1445)
-    );
+            && *total_tokens == 1445));
 
     // Verify session_id extracted from thread.started
     assert_eq!(
@@ -1176,13 +1205,38 @@ fn codex_text_mode_passthrough() {
 }
 
 #[test]
+fn codex_ignores_benign_stdin_diagnostic() {
+    let config = make_codex_config(OutputFormat::StreamJsonl);
+    let mut normalizer = crate::codex::CodexNormalizer::new(&config);
+
+    let events = normalizer.finalize(Some(0), "Reading additional input from stdin…\n");
+
+    assert!(events.is_empty());
+}
+
+#[test]
+fn codex_preserves_real_stderr_beside_benign_stdin_diagnostic() {
+    let config = make_codex_config(OutputFormat::StreamJsonl);
+    let mut normalizer = crate::codex::CodexNormalizer::new(&config);
+
+    let events = normalizer.finalize(
+        Some(1),
+        "Reading additional input from stdin...\nconnection failed\n",
+    );
+
+    assert!(matches!(
+        events.as_slice(),
+        [AgentEventPayload::Error { message, recoverable }]
+            if message == "connection failed" && !recoverable
+    ));
+}
+
+#[test]
 fn codex_extracts_thread_id_as_session_id() {
     let config = make_codex_config(OutputFormat::StreamJsonl);
     let mut normalizer = crate::codex::CodexNormalizer::new(&config);
 
-    normalizer.process_chunk(
-        "{\"type\":\"thread.started\",\"thread_id\":\"abc-123-def\"}\n",
-    );
+    normalizer.process_chunk("{\"type\":\"thread.started\",\"thread_id\":\"abc-123-def\"}\n");
 
     assert_eq!(
         normalizer.extract_session_id(),
@@ -1195,9 +1249,8 @@ fn codex_turn_failed_emits_error() {
     let config = make_codex_config(OutputFormat::StreamJsonl);
     let mut normalizer = crate::codex::CodexNormalizer::new(&config);
 
-    let events = normalizer.process_chunk(
-        "{\"type\":\"turn.failed\",\"message\":\"Rate limit exceeded\"}\n",
-    );
+    let events = normalizer
+        .process_chunk("{\"type\":\"turn.failed\",\"message\":\"Rate limit exceeded\"}\n");
     assert_eq!(events.len(), 1);
     assert!(
         matches!(&events[0], AgentEventPayload::Error { message, recoverable }
@@ -1257,6 +1310,47 @@ fn codex_tools_in_flight_paired_around_command_execution() {
 }
 
 #[test]
+fn codex_mcp_tool_call_emits_correlated_lifecycle_events() {
+    let config = make_codex_config(OutputFormat::StreamJsonl);
+    let mut normalizer = crate::codex::CodexNormalizer::new(&config);
+
+    let started = normalizer.process_chunk(
+        "{\"type\":\"item.started\",\"item\":{\"id\":\"item_3\",\"type\":\"mcp_tool_call\",\"server\":\"launchpad\",\"tool\":\"Delegate\",\"arguments\":{\"target\":\"iOS Engineer\",\"brief\":\"Inspect the views\"},\"status\":\"in_progress\"}}\n",
+    );
+    assert!(
+        matches!(&started[..], [AgentEventPayload::ToolCallStarted { tool_name, tool_input: Some(input), tool_use_id: Some(id), .. }]
+        if tool_name == "mcp__launchpad__Delegate"
+            && input.get("target").and_then(|v| v.as_str()) == Some("iOS Engineer")
+            && id == "item_3")
+    );
+
+    let completed = normalizer.process_chunk(
+        "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_3\",\"type\":\"mcp_tool_call\",\"server\":\"launchpad\",\"tool\":\"Delegate\",\"arguments\":{\"target\":\"iOS Engineer\"},\"status\":\"completed\",\"result\":{\"summary\":\"Done\"}}}\n",
+    );
+    assert!(
+        matches!(&completed[..], [AgentEventPayload::ToolCallCompleted { tool_name, output: Some(output), tool_use_id: Some(id), is_error }]
+        if tool_name == "mcp__launchpad__Delegate"
+            && output == "{\"summary\":\"Done\"}"
+            && id == "item_3"
+            && !is_error)
+    );
+}
+
+#[test]
+fn codex_failed_mcp_tool_call_is_an_error() {
+    let config = make_codex_config(OutputFormat::StreamJsonl);
+    let mut normalizer = crate::codex::CodexNormalizer::new(&config);
+
+    let events = normalizer.process_chunk(
+        "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_4\",\"type\":\"mcp_tool_call\",\"server\":\"launchpad\",\"tool\":\"Delegate\",\"status\":\"failed\",\"error\":{\"message\":\"target unavailable\"}}}\n",
+    );
+    assert!(
+        matches!(&events[..], [AgentEventPayload::ToolCallCompleted { output: Some(output), is_error, .. }]
+        if output.contains("target unavailable") && *is_error)
+    );
+}
+
+#[test]
 fn codex_tools_in_flight_does_not_underflow_on_unpaired_completed() {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
@@ -1298,9 +1392,8 @@ fn registry_creates_codex_normalizer() {
     let mut normalizer = registry.create("codex", &config);
 
     // CodexNormalizer in StreamJsonl mode processes thread.started
-    let events = normalizer.process_chunk(
-        "{\"type\":\"thread.started\",\"thread_id\":\"test-thread-id\"}\n",
-    );
+    let events = normalizer
+        .process_chunk("{\"type\":\"thread.started\",\"thread_id\":\"test-thread-id\"}\n");
     assert!(events.is_empty()); // thread.started emits no payload events
 
     // Process an agent_message
@@ -1328,10 +1421,7 @@ const AGY_SAMPLE_RESULT: &str = r#"{"conversation_id":"46568e4d-4a4b-4286-a966-6
 fn make_agy_config(output_format: OutputFormat) -> CliProviderConfig {
     CliProviderConfig {
         command: "agy".to_string(),
-        args: vec![
-            "--output-format".to_string(),
-            "stream-json".to_string(),
-        ],
+        args: vec!["--output-format".to_string(), "stream-json".to_string()],
         normalizer: Some("agy".to_string()),
         output_format,
         input_mode: InputMode::Arg,
@@ -1363,7 +1453,8 @@ const AGY_NDJSON_RESULT_SUCCESS: &str = r#"{"event":"result","result":{"conversa
 
 const AGY_NDJSON_RESULT_FAILURE: &str = r#"{"event":"result","result":{"conversation_id":"agy-conv-1","status":"ERROR","response":"something broke","duration_seconds":0.3,"num_turns":1,"usage":{"input_tokens":5,"output_tokens":0,"thinking_tokens":0,"cache_read_tokens":0,"total_tokens":5}}}"#;
 
-const AGY_NDJSON_UNKNOWN_TOP_LEVEL_EVENT: &str = r#"{"event":"some_future_event","payload":{"foo":"bar"}}"#;
+const AGY_NDJSON_UNKNOWN_TOP_LEVEL_EVENT: &str =
+    r#"{"event":"some_future_event","payload":{"foo":"bar"}}"#;
 
 #[test]
 fn agy_stream_json_agent_response_step_emits_text_delta() {
@@ -1404,7 +1495,11 @@ fn agy_stream_json_full_sequence_emits_text_once_and_maps_usage() {
     let mut normalizer = crate::agy::AgyNormalizer::new(&config);
 
     let mut all_events = Vec::new();
-    for line in [AGY_NDJSON_INIT, AGY_NDJSON_STEP_AGENT_RESPONSE, AGY_NDJSON_RESULT_SUCCESS] {
+    for line in [
+        AGY_NDJSON_INIT,
+        AGY_NDJSON_STEP_AGENT_RESPONSE,
+        AGY_NDJSON_RESULT_SUCCESS,
+    ] {
         all_events.extend(normalizer.process_chunk(&format!("{}\n", line)));
     }
 
@@ -1414,7 +1509,11 @@ fn agy_stream_json_full_sequence_emits_text_once_and_maps_usage() {
         .iter()
         .filter(|e| matches!(e, AgentEventPayload::TextDelta { .. }))
         .collect();
-    assert_eq!(text_deltas.len(), 1, "expected exactly one TextDelta across the whole run");
+    assert_eq!(
+        text_deltas.len(),
+        1,
+        "expected exactly one TextDelta across the whole run"
+    );
     assert!(matches!(
         &text_deltas[0],
         AgentEventPayload::TextDelta { text } if text == "Hello from agy"
@@ -1426,7 +1525,11 @@ fn agy_stream_json_full_sequence_emits_text_once_and_maps_usage() {
         .iter()
         .filter(|e| matches!(e, AgentEventPayload::Usage { .. }))
         .collect();
-    assert_eq!(usage_events.len(), 1, "expected exactly one Usage event, from result only");
+    assert_eq!(
+        usage_events.len(),
+        1,
+        "expected exactly one Usage event, from result only"
+    );
     assert!(matches!(
         &usage_events[0],
         AgentEventPayload::Usage {
@@ -1466,7 +1569,9 @@ fn agy_stream_json_non_success_result_emits_error() {
     ));
 
     // No TextDelta should be emitted for a failed run's response text.
-    assert!(!events.iter().any(|e| matches!(e, AgentEventPayload::TextDelta { .. })));
+    assert!(!events
+        .iter()
+        .any(|e| matches!(e, AgentEventPayload::TextDelta { .. })));
 }
 
 #[test]
@@ -1496,7 +1601,10 @@ fn agy_stream_json_captures_conversation_id_as_session_id() {
     assert_eq!(normalizer.extract_session_id(), None);
 
     normalizer.process_chunk(&format!("{}\n", AGY_NDJSON_INIT));
-    assert_eq!(normalizer.extract_session_id(), Some("agy-conv-1".to_string()));
+    assert_eq!(
+        normalizer.extract_session_id(),
+        Some("agy-conv-1".to_string())
+    );
 }
 
 #[test]
@@ -1507,10 +1615,15 @@ fn agy_stream_json_handles_partial_lines_across_chunks() {
     let full_line = format!("{}\n", AGY_NDJSON_STEP_AGENT_RESPONSE);
     let (first, second) = full_line.split_at(30);
 
-    assert!(normalizer.process_chunk(first).is_empty(), "no complete line yet");
+    assert!(
+        normalizer.process_chunk(first).is_empty(),
+        "no complete line yet"
+    );
     let events = normalizer.process_chunk(second);
     assert_eq!(events.len(), 1);
-    assert!(matches!(&events[0], AgentEventPayload::TextDelta { text } if text == "Hello from agy"));
+    assert!(
+        matches!(&events[0], AgentEventPayload::TextDelta { text } if text == "Hello from agy")
+    );
 }
 
 #[test]
@@ -1655,9 +1768,18 @@ fn agy_stream_json_tool_active_done_with_output_pair_correlates_ids() {
     let started = normalizer.process_chunk(&format!("{}\n", AGY_NDJSON_TOOL_ACTIVE_NO_PARAMS));
     assert_eq!(started.len(), 1);
     let started_id = match &started[0] {
-        AgentEventPayload::ToolCallStarted { tool_name, tool_input, tool_use_id, .. } => {
+        AgentEventPayload::ToolCallStarted {
+            tool_name,
+            tool_input,
+            tool_use_id,
+            ..
+        } => {
             assert_eq!(tool_name, "list_permissions");
-            assert!(tool_input.is_none(), "no-arg tool must carry no input, got {:?}", tool_input);
+            assert!(
+                tool_input.is_none(),
+                "no-arg tool must carry no input, got {:?}",
+                tool_input
+            );
             tool_use_id.clone().expect("tool_use_id must be set")
         }
         other => panic!("expected ToolCallStarted, got {:?}", other),
@@ -1666,10 +1788,22 @@ fn agy_stream_json_tool_active_done_with_output_pair_correlates_ids() {
     let completed = normalizer.process_chunk(&format!("{}\n", AGY_NDJSON_TOOL_DONE_WITH_OUTPUT));
     assert_eq!(completed.len(), 1);
     match &completed[0] {
-        AgentEventPayload::ToolCallCompleted { tool_name, output, tool_use_id, is_error } => {
+        AgentEventPayload::ToolCallCompleted {
+            tool_name,
+            output,
+            tool_use_id,
+            is_error,
+        } => {
             assert_eq!(tool_name, "list_permissions");
-            assert_eq!(output.as_deref(), Some("read_file: allow\nwrite_file: deny"));
-            assert_eq!(tool_use_id.as_ref(), Some(&started_id), "completed id must match started id");
+            assert_eq!(
+                output.as_deref(),
+                Some("read_file: allow\nwrite_file: deny")
+            );
+            assert_eq!(
+                tool_use_id.as_ref(),
+                Some(&started_id),
+                "completed id must match started id"
+            );
             assert!(!is_error);
         }
         other => panic!("expected ToolCallCompleted, got {:?}", other),
@@ -1684,20 +1818,39 @@ fn agy_stream_json_tool_done_without_output_emits_empty_output_not_error() {
     let started = normalizer.process_chunk(&format!("{}\n", AGY_NDJSON_TOOL_ACTIVE_WITH_PARAMS));
     assert_eq!(started.len(), 1);
     let (started_id, tool_input) = match &started[0] {
-        AgentEventPayload::ToolCallStarted { tool_input, tool_use_id, .. } => {
-            (tool_use_id.clone().expect("tool_use_id must be set"), tool_input.clone())
-        }
+        AgentEventPayload::ToolCallStarted {
+            tool_input,
+            tool_use_id,
+            ..
+        } => (
+            tool_use_id.clone().expect("tool_use_id must be set"),
+            tool_input.clone(),
+        ),
         other => panic!("expected ToolCallStarted, got {:?}", other),
     };
-    assert_eq!(tool_input, Some(serde_json::json!({"DirectoryPath": "/some/path"})));
+    assert_eq!(
+        tool_input,
+        Some(serde_json::json!({"DirectoryPath": "/some/path"}))
+    );
 
     let completed = normalizer.process_chunk(&format!("{}\n", AGY_NDJSON_TOOL_DONE_WITHOUT_OUTPUT));
     assert_eq!(completed.len(), 1);
     match &completed[0] {
-        AgentEventPayload::ToolCallCompleted { output, tool_use_id, is_error, .. } => {
-            assert!(output.is_none(), "missing tool_info.output must render as empty, not error");
+        AgentEventPayload::ToolCallCompleted {
+            output,
+            tool_use_id,
+            is_error,
+            ..
+        } => {
+            assert!(
+                output.is_none(),
+                "missing tool_info.output must render as empty, not error"
+            );
             assert_eq!(tool_use_id.as_ref(), Some(&started_id));
-            assert!(!is_error, "missing output alone must not be treated as an error");
+            assert!(
+                !is_error,
+                "missing output alone must not be treated as an error"
+            );
         }
         other => panic!("expected ToolCallCompleted, got {:?}", other),
     }
@@ -1719,9 +1872,17 @@ fn agy_stream_json_tool_error_emits_completed_with_error_and_does_not_abort_stre
     let errored = normalizer.process_chunk(&format!("{}\n", AGY_NDJSON_TOOL_ERROR));
     assert_eq!(errored.len(), 1);
     match &errored[0] {
-        AgentEventPayload::ToolCallCompleted { tool_name, output, tool_use_id, is_error } => {
+        AgentEventPayload::ToolCallCompleted {
+            tool_name,
+            output,
+            tool_use_id,
+            is_error,
+        } => {
             assert_eq!(tool_name, "list_dir");
-            assert_eq!(output.as_deref(), Some("User denied permission for read_file(/x)."));
+            assert_eq!(
+                output.as_deref(),
+                Some("User denied permission for read_file(/x).")
+            );
             assert_eq!(tool_use_id.as_ref(), Some(&started_id));
             assert!(is_error);
         }
@@ -1767,7 +1928,12 @@ fn agy_stream_json_end_to_end_with_tools_usage_sole_source_and_correlated_ids() 
         .iter()
         .filter(|e| matches!(e, AgentEventPayload::Usage { .. }))
         .collect();
-    assert_eq!(usage_events.len(), 1, "expected exactly one Usage event, got {:?}", usage_events);
+    assert_eq!(
+        usage_events.len(),
+        1,
+        "expected exactly one Usage event, got {:?}",
+        usage_events
+    );
     assert!(matches!(
         usage_events[0],
         AgentEventPayload::Usage {
@@ -1781,7 +1947,9 @@ fn agy_stream_json_end_to_end_with_tools_usage_sole_source_and_correlated_ids() 
 
     // No fatal Error — a tool ERROR is not a stream-level error, and
     // result.status is SUCCESS.
-    assert!(!all_events.iter().any(|e| matches!(e, AgentEventPayload::Error { .. })));
+    assert!(!all_events
+        .iter()
+        .any(|e| matches!(e, AgentEventPayload::Error { .. })));
 
     // Both tool calls correlate start <-> completion via the same id.
     let started_ids: Vec<String> = all_events
@@ -1794,16 +1962,21 @@ fn agy_stream_json_end_to_end_with_tools_usage_sole_source_and_correlated_ids() 
     let completed: Vec<(String, bool)> = all_events
         .iter()
         .filter_map(|e| match e {
-            AgentEventPayload::ToolCallCompleted { tool_use_id, is_error, .. } => {
-                Some((tool_use_id.clone().expect("id set"), *is_error))
-            }
+            AgentEventPayload::ToolCallCompleted {
+                tool_use_id,
+                is_error,
+                ..
+            } => Some((tool_use_id.clone().expect("id set"), *is_error)),
             _ => None,
         })
         .collect();
     assert_eq!(started_ids.len(), 2);
     assert_eq!(completed.len(), 2);
     assert_eq!(started_ids[0], completed[0].0);
-    assert!(!completed[0].1, "list_permissions call must complete without error");
+    assert!(
+        !completed[0].1,
+        "list_permissions call must complete without error"
+    );
     assert_eq!(started_ids[1], completed[1].0);
     assert!(completed[1].1, "list_dir call must complete with error");
 

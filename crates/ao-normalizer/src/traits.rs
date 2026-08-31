@@ -29,8 +29,8 @@ pub trait OutputNormalizer: Send {
     /// Implementations:
     /// - `ClaudeNormalizer` increments on `content_block_start[tool_use]` and
     ///   decrements on `tool_result` blocks.
-    /// - `CodexNormalizer` increments on `item.started[command_execution]` and
-    ///   decrements on the matching `item.completed`.
+    /// - `CodexNormalizer` increments on command and MCP tool `item.started`
+    ///   events and decrements on the matching `item.completed`.
     /// - `CursorAgentNormalizer` and `GenericNormalizer` do not expose tool
     ///   boundaries in their stream, so they inherit the no-op default. If a
     ///   future CLI under one of those normalizers grows tool semantics, wire

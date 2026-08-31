@@ -49,26 +49,21 @@ impl CursorAgentNormalizer {
             Err(_) => return vec![],
         };
 
-        let event_type = value
-            .get("type")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let event_type = value.get("type").and_then(|v| v.as_str()).unwrap_or("");
         let mut events = Vec::new();
 
         match event_type {
             "system" => {
                 if self.session_id.is_none() {
-                    self.session_id = helpers::extract_session_id_from_value(&value, &self.session_id_fields);
+                    self.session_id =
+                        helpers::extract_session_id_from_value(&value, &self.session_id_fields);
                 }
             }
             "user" => {
                 // User message echo — ignore
             }
             "thinking" => {
-                let subtype = value
-                    .get("subtype")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let subtype = value.get("subtype").and_then(|v| v.as_str()).unwrap_or("");
                 if subtype == "delta" {
                     if let Some(text) = value.get("text").and_then(|v| v.as_str()) {
                         events.push(AgentEventPayload::ThinkingDelta {
@@ -91,7 +86,10 @@ impl CursorAgentNormalizer {
                         }
                     }
                     if self.session_id.is_none() {
-                        self.session_id = helpers::extract_session_id_from_value(message, &self.session_id_fields);
+                        self.session_id = helpers::extract_session_id_from_value(
+                            message,
+                            &self.session_id_fields,
+                        );
                     }
                     if let Some(usage) = helpers::extract_usage(message) {
                         events.push(usage);
@@ -100,7 +98,8 @@ impl CursorAgentNormalizer {
             }
             "result" => {
                 if self.session_id.is_none() {
-                    self.session_id = helpers::extract_session_id_from_value(&value, &self.session_id_fields);
+                    self.session_id =
+                        helpers::extract_session_id_from_value(&value, &self.session_id_fields);
                 }
                 if let Some(text) = helpers::collect_text(&value) {
                     // Only emit if we haven't already captured text from assistant events
