@@ -5,7 +5,7 @@ It depends on third-party software listed below. This file exists to satisfy
 the attribution requirements of those licences and to let you audit our
 dependency licensing without building the project.
 
-**Coverage: 775 of 775 Rust crates and 565 of 565 npm packages. No unknowns.**
+**Coverage: 761 of 761 Rust crates and 565 of 565 npm packages. No unknowns.**
 
 ## How this was produced
 
@@ -75,21 +75,21 @@ CDDL, EPL, OSL, EUPL, the Commons Clause, or the Elastic License.** There are no
 git-sourced Rust dependencies, so every crate's origin is a published crates.io
 release.
 
-## Rust crates (775)
+## Rust crates (761)
 
 ### Summary by declared licence
 
 | Licence | Crates |
 |---|---|
 | `MIT OR Apache-2.0` | 335 |
-| `MIT` | 211 |
-| `Apache-2.0 OR MIT` | 59 |
-| `MIT/Apache-2.0` | 40 |
+| `MIT` | 202 |
+| `Apache-2.0 OR MIT` | 57 |
+| `MIT/Apache-2.0` | 38 |
 | `Zlib OR Apache-2.0 OR MIT` | 19 |
 | `Unicode-3.0` | 18 |
 | `Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT` | 15 |
 | `Unlicense OR MIT` | 13 |
-| `Apache-2.0/MIT` | 7 |
+| `Apache-2.0/MIT` | 6 |
 | `Apache-2.0 OR ISC OR MIT` | 6 |
 | `Apache-2.0` | 6 |
 | `MPL-2.0` | 5 |
@@ -140,15 +140,12 @@ release.
 | `anstyle-wincon` | 3.0.11 | MIT OR Apache-2.0 |
 | `anyhow` | 1.0.102 | MIT OR Apache-2.0 |
 | `arbitrary` | 1.4.2 | MIT OR Apache-2.0 |
-| `ashpd` | 0.11.1 | MIT |
 | `assert-json-diff` | 2.0.2 | MIT |
 | `async-broadcast` | 0.7.2 | MIT OR Apache-2.0 |
 | `async-channel` | 2.5.0 | Apache-2.0 OR MIT |
 | `async-executor` | 1.14.0 | Apache-2.0 OR MIT |
-| `async-fs` | 2.2.0 | Apache-2.0 OR MIT |
 | `async-io` | 2.6.0 | Apache-2.0 OR MIT |
 | `async-lock` | 3.4.2 | Apache-2.0 OR MIT |
-| `async-net` | 2.0.0 | Apache-2.0 OR MIT |
 | `async-process` | 2.5.0 | Apache-2.0 OR MIT |
 | `async-recursion` | 1.1.1 | MIT OR Apache-2.0 |
 | `async-signal` | 0.2.13 | Apache-2.0 OR MIT |
@@ -256,11 +253,9 @@ release.
 | `dispatch` | 0.2.0 | MIT |
 | `dispatch2` | 0.3.0 | Zlib OR Apache-2.0 OR MIT |
 | `displaydoc` | 0.2.5 | MIT OR Apache-2.0 |
-| `dlib` | 0.5.3 | MIT |
 | `dlopen2` | 0.8.2 | MIT |
 | `dlopen2_derive` | 0.4.3 | MIT |
 | `doc-comment` | 0.3.4 | MIT |
-| `downcast-rs` | 1.2.1 | MIT/Apache-2.0 |
 | `dpi` | 0.1.2 | Apache-2.0 AND MIT |
 | `dtoa` | 1.0.11 | MIT OR Apache-2.0 |
 | `dtoa-short` | 0.3.5 | MPL-2.0 |
@@ -534,7 +529,6 @@ release.
 | `plist` | 1.8.0 | MIT |
 | `png` | 0.17.16 | MIT OR Apache-2.0 |
 | `polling` | 3.11.0 | Apache-2.0 OR MIT |
-| `pollster` | 0.4.0 | Apache-2.0/MIT |
 | `potential_utf` | 0.1.4 | Unicode-3.0 |
 | `powerfmt` | 0.2.0 | MIT OR Apache-2.0 |
 | `ppv-lite86` | 0.2.21 | MIT OR Apache-2.0 |
@@ -549,7 +543,6 @@ release.
 | `proc-macro2` | 1.0.106 | MIT OR Apache-2.0 |
 | `proc-macro2-diagnostics` | 0.10.1 | MIT/Apache-2.0 |
 | `quick-xml` | 0.38.4 | MIT |
-| `quick-xml` | 0.41.0 | MIT |
 | `quinn` | 0.11.9 | MIT OR Apache-2.0 |
 | `quinn-proto` | 0.11.14 | MIT OR Apache-2.0 |
 | `quinn-udp` | 0.5.14 | MIT OR Apache-2.0 |
@@ -611,7 +604,6 @@ release.
 | `schemars` | 0.9.0 | MIT |
 | `schemars` | 1.2.1 | MIT |
 | `schemars_derive` | 0.8.22 | MIT |
-| `scoped-tls` | 1.0.1 | MIT/Apache-2.0 |
 | `scopeguard` | 1.2.0 | MIT OR Apache-2.0 |
 | `sdd` | 3.0.10 | Apache-2.0 |
 | `secret-service` | 4.0.0 | MIT OR Apache-2.0 |
@@ -755,7 +747,6 @@ release.
 | `unsafe-libyaml` | 0.2.11 | MIT |
 | `untrusted` | 0.9.0 | ISC |
 | `url` | 2.5.8 | MIT OR Apache-2.0 |
-| `urlencoding` | 2.1.3 | MIT |
 | `urlpattern` | 0.3.0 | MIT |
 | `utf-8` | 0.7.6 | MIT OR Apache-2.0 |
 | `utf8_iter` | 1.0.4 | Apache-2.0 OR MIT |
@@ -785,11 +776,6 @@ release.
 | `wasm-streams` | 0.4.2 | MIT OR Apache-2.0 |
 | `wasm-streams` | 0.5.0 | MIT OR Apache-2.0 |
 | `wasmparser` | 0.244.0 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
-| `wayland-backend` | 0.3.16 | MIT |
-| `wayland-client` | 0.31.15 | MIT |
-| `wayland-protocols` | 0.32.13 | MIT |
-| `wayland-scanner` | 0.31.11 | MIT |
-| `wayland-sys` | 0.31.11 | MIT |
 | `web-sys` | 0.3.90 | MIT OR Apache-2.0 |
 | `web-time` | 1.1.0 | MIT OR Apache-2.0 |
 | `webkit2gtk` | 2.0.2 | MIT |

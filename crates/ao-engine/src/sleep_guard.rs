@@ -1,3 +1,4 @@
+use std::sync::Mutex;
 use std::time::Duration;
 
 use nosleep::{NoSleep, NoSleepType};
@@ -17,7 +18,25 @@ pub struct SleepGuard {
     /// only preventing system/CPU sleep.
     keep_display_awake: bool,
     /// Active nosleep handle, if currently held.
-    handle: Option<NoSleep>,
+    ///
+    /// Wrapped in a `Mutex` purely to restore `Sync`, not for any runtime
+    /// locking need — every access below already holds `&mut self`, so this
+    /// only ever goes through `Mutex::get_mut`, which is a compile-time
+    /// exclusivity check with no lock actually taken. On Linux,
+    /// `nosleep::NoSleep` is `nosleep_nix::NoSleep`, which embeds a
+    /// `dbus::blocking::Connection`; that type's filter-callback storage is
+    /// `RefCell`-backed, making it `Send` but not `Sync`. Left bare, that
+    /// makes `SleepGuard` `!Sync`, which makes every struct embedding one
+    /// (`WorkflowQueueManager`, `TasklistQueueManager`,
+    /// `AgentSleepGuardRunner`, `ScheduleRunner`) `!Sync` too, which fails
+    /// `tokio::spawn`'s `Future: Send` bound wherever an async method on
+    /// those types borrows `&self` across an `.await` — Linux-only, since
+    /// macOS's nosleep backend has no dbus connection at all. `Mutex<T>` is
+    /// `Sync` whenever `T: Send` (true here — the compiler's own diagnostic
+    /// confirms only `&Connection`, not the owned `Connection`, is
+    /// non-`Send`), which restores `Sync` on `SleepGuard` without changing
+    /// any locking semantics.
+    handle: Mutex<Option<NoSleep>>,
 }
 
 impl SleepGuard {
@@ -26,8 +45,17 @@ impl SleepGuard {
             window_hours,
             disabled: false,
             keep_display_awake: false,
-            handle: None,
+            handle: Mutex::new(None),
         }
+    }
+
+    /// Compile-time-exclusive access to the held handle (see the field's doc
+    /// comment for why this is a `Mutex` at all). Never actually blocks: every
+    /// caller already holds `&mut self`.
+    fn handle_mut(&mut self) -> &mut Option<NoSleep> {
+        self.handle
+            .get_mut()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     /// Update the guard based on the nearest upcoming task fire time.
@@ -37,9 +65,9 @@ impl SleepGuard {
     pub fn update(&mut self, nearest_fire_in: Option<Duration>) {
         let should_hold = self.window_should_hold(nearest_fire_in);
 
-        if should_hold && self.handle.is_none() {
+        if should_hold && self.handle_mut().is_none() {
             self.acquire();
-        } else if !should_hold && self.handle.is_some() {
+        } else if !should_hold && self.handle_mut().is_some() {
             self.release();
         }
     }
@@ -83,7 +111,7 @@ impl SleepGuard {
             return;
         }
         self.keep_display_awake = on;
-        if self.handle.is_some() {
+        if self.handle_mut().is_some() {
             self.release();
             self.acquire();
         }
@@ -94,9 +122,9 @@ impl SleepGuard {
     /// as long as work is in flight, rather than a time-until-next-fire window.
     pub fn update_active(&mut self, active: bool) {
         let should_hold = active && !self.disabled;
-        if should_hold && self.handle.is_none() {
+        if should_hold && self.handle_mut().is_none() {
             self.acquire();
-        } else if !should_hold && self.handle.is_some() {
+        } else if !should_hold && self.handle_mut().is_some() {
             self.release();
         }
     }
@@ -124,7 +152,7 @@ impl SleepGuard {
                     keep_display_awake = self.keep_display_awake,
                     "Sleep guard acquired — preventing system sleep"
                 );
-                self.handle = Some(ns);
+                *self.handle_mut() = Some(ns);
             }
             Err(e) => {
                 warn!(error = %e, "Failed to create sleep guard");
@@ -133,11 +161,11 @@ impl SleepGuard {
     }
 
     fn release(&mut self) {
-        if let Some(ref mut ns) = self.handle {
+        if let Some(ns) = self.handle_mut() {
             // nosleep stop is best-effort
             let _ = ns.stop();
         }
-        self.handle = None;
+        *self.handle_mut() = None;
         debug!("Sleep guard released");
     }
 
@@ -192,9 +220,9 @@ mod tests {
         // No guard is acquired here, so toggling the flag must not touch
         // `handle` — it should just be remembered for the next acquire().
         let mut guard = SleepGuard::new(4.0);
-        assert!(guard.handle.is_none());
+        assert!(guard.handle_mut().is_none());
         guard.set_keep_display_awake(true);
-        assert!(guard.handle.is_none());
+        assert!(guard.handle_mut().is_none());
         assert!(guard.keep_display_awake);
     }
 
@@ -203,7 +231,7 @@ mod tests {
         let mut guard = SleepGuard::new(4.0);
         guard.set_keep_display_awake(false);
         assert!(!guard.keep_display_awake);
-        assert!(guard.handle.is_none());
+        assert!(guard.handle_mut().is_none());
     }
 
     // The window-decision tests below exercise the scheduler-facing wiring the

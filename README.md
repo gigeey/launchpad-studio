@@ -545,7 +545,7 @@ reproduction steps first, because for a bug they matter more than anything else 
 Licensed under the **[Apache License 2.0](LICENSE)**.
 
 Every dependency licence is inventoried in **[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)**:
-775 Rust crates and 565 npm packages, transitive included, resolved for every target platform
+761 Rust crates and 565 npm packages, transitive included, resolved for every target platform
 rather than for whichever one produced the file, with no unknowns. Nothing in either tree is
 under the GPL, AGPL, SSPL, BUSL, or any source-available licence, and there are no git-sourced
 Rust dependencies. The attribution obligations this project carries — five MPL-2.0 crates and
