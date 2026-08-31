@@ -8,7 +8,7 @@ use serde_json::json;
 use tokio::io::AsyncWriteExt;
 
 use ao_engine_tools_core::background_agents::sidechain_persister::{
-    SidechainEventMeta, SidechainPersister,
+    SidechainEventMeta, SidechainPersistError, SidechainPersister,
 };
 use ao_engine_tools_core::background_agents::RunnerEvent;
 use ao_protocol::transcript::{TranscriptEntry, TranscriptRole};
@@ -48,7 +48,11 @@ impl FileSidechainPersister {
 
 #[async_trait]
 impl SidechainPersister for FileSidechainPersister {
-    async fn persist_event(&self, meta: &SidechainEventMeta, event: &RunnerEvent) {
+    async fn persist_event(
+        &self,
+        meta: &SidechainEventMeta,
+        event: &RunnerEvent,
+    ) -> Result<(), SidechainPersistError> {
         let (event_type, content) = event_to_parts(event);
 
         let mut metadata: HashMap<String, serde_json::Value> = HashMap::new();
@@ -80,7 +84,10 @@ impl SidechainPersister for FileSidechainPersister {
                     parent_dir,
                     e
                 );
-                return;
+                return Err(SidechainPersistError::CreateDir {
+                    path: parent_dir.to_path_buf(),
+                    source: e,
+                });
             }
         }
 
@@ -88,7 +95,7 @@ impl SidechainPersister for FileSidechainPersister {
             Ok(s) => format!("{s}\n"),
             Err(e) => {
                 tracing::warn!("sidechain: failed to serialize event: {}", e);
-                return;
+                return Err(SidechainPersistError::Serialize { source: e });
             }
         };
 
@@ -101,12 +108,16 @@ impl SidechainPersister for FileSidechainPersister {
             Ok(mut file) => {
                 if let Err(e) = file.write_all(line.as_bytes()).await {
                     tracing::warn!("sidechain: failed to write to {:?}: {}", path, e);
+                    return Err(SidechainPersistError::Write { path, source: e });
                 }
             }
             Err(e) => {
                 tracing::warn!("sidechain: failed to open {:?}: {}", path, e);
+                return Err(SidechainPersistError::Open { path, source: e });
             }
         }
+
+        Ok(())
     }
 }
 

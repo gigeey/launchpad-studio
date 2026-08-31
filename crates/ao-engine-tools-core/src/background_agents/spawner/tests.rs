@@ -1465,3 +1465,74 @@ async fn spawn_named_async_id_depth_cap_exceeded_returns_err() {
         "unexpected error: {err:?}"
     );
 }
+
+// --- spawn_named_async_id: marker-write failure must not orphan the child ---
+
+use crate::background_agents::{SidechainEventMeta, SidechainPersistError, SidechainPersister};
+
+/// A [`SidechainPersister`] that always fails, modeling a spawn-marker write
+/// that never lands on disk.
+struct FailingSidechainPersister;
+
+#[async_trait]
+impl SidechainPersister for FailingSidechainPersister {
+    async fn persist_event(
+        &self,
+        _meta: &SidechainEventMeta,
+        _event: &RunnerEvent,
+    ) -> Result<(), SidechainPersistError> {
+        Err(SidechainPersistError::Write {
+            path: PathBuf::from("/nonexistent/transcript.jsonl"),
+            source: std::io::Error::new(std::io::ErrorKind::Other, "simulated write failure"),
+        })
+    }
+}
+
+/// Regression test for the orphaned-agent leak flagged in the (now-resolved)
+/// comment above the marker-write match in `spawn_named_async_core`: before
+/// the fix, a marker-write failure returned `Err` to the caller while the
+/// child task spawned and registered just above it kept running — untracked
+/// and uncancellable, since no id was ever handed back to poll or cancel it
+/// by. A caller retrying on that `Err` could then spawn a duplicate.
+#[tokio::test]
+async fn spawn_named_async_id_marker_write_failure_deregisters_child() {
+    let spawner = make_async_spawner_with_report(TaskFinalReport::completed(Some(
+        "should never be observed".to_string(),
+    )))
+    .with_sidechain_persister(Arc::new(FailingSidechainPersister));
+    let profile = minimal_delegate_profile();
+    let ctx = make_ctx_with_registry();
+
+    assert_eq!(
+        ctx.background_agents.live_count().await,
+        0,
+        "sanity: registry starts empty"
+    );
+
+    let result = spawner
+        .spawn_named_async_id(
+            &ctx,
+            &profile,
+            "do it".to_string(),
+            false,
+            "artifact-agent".to_string(),
+        )
+        .await;
+
+    let err = result.expect_err("marker-write failure must surface as Err");
+    assert!(
+        matches!(&err, ToolOutput::Error { message, .. } if message.contains("failed to persist spawn marker")),
+        "unexpected error: {err:?}"
+    );
+
+    // The spawn must be atomic: a marker-write failure must leave nothing
+    // registered behind. Before the fix this was 1 — the child task spawned
+    // and inserted ahead of the marker write, orphaned by the early return,
+    // with no id in `err` for the caller to reach it by.
+    assert_eq!(
+        ctx.background_agents.live_count().await,
+        0,
+        "the child handle must be deregistered when the marker write fails, \
+         or a retried spawn would leak a duplicate untracked agent"
+    );
+}
