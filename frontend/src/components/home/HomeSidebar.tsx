@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { twMerge } from "tailwind-merge";
 import { Search, Plus, Play, GitBranch, Hash, Loader2, ClipboardList, CalendarClock, User, ChevronRight, MoreVertical, X, Inbox } from "lucide-react";
+import { MotionConfig } from "framer-motion";
 import { agentHasAnyPendingForm, agentHasPendingSyncForm, useChatStore } from "../../stores/chatStore";
 import { useNavigationStore } from "../../stores/navigationStore";
 import { useAssignmentEditorModalStore } from "../../stores/assignmentEditorModalStore";
@@ -707,6 +708,7 @@ export function HomeSidebar() {
           left by 5px relative to anything rendered outside it, so a header
           placed outside would always read as misaligned with one placed
           inside. */}
+      <MotionConfig reducedMotion="never">
       <div className="flex-1 overflow-y-auto overflow-x-hidden pr-[5px]">
         {/* Assignments header — toggles `jobsCollapsed`, which also hides the
             grouped run-thread body rendered below it (see the body block
@@ -1631,6 +1633,7 @@ export function HomeSidebar() {
           </ContentGate>
         )}
       </div>
+      </MotionConfig>
 
       {/* Portaled to `document.body` (see RenameThreadModal) — safe to keep
           mounted here regardless of this sidebar's own scroll/overflow
