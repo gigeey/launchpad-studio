@@ -1232,6 +1232,87 @@ fn codex_preserves_real_stderr_beside_benign_stdin_diagnostic() {
 }
 
 #[test]
+fn codex_ignores_ascii_stdin_diagnostic_alone() {
+    // codex_preserves_real_stderr_beside_benign_stdin_diagnostic only
+    // exercises the ASCII `...` spelling mixed with a real error line —
+    // this isolates it to confirm it is suppressed on its own too.
+    let config = make_codex_config(OutputFormat::StreamJsonl);
+    let mut normalizer = crate::codex::CodexNormalizer::new(&config);
+
+    let events = normalizer.finalize(Some(0), "Reading additional input from stdin...\n");
+
+    assert!(events.is_empty());
+}
+
+#[test]
+fn codex_stderr_without_benign_diagnostic_is_not_suppressed() {
+    // A genuine error with no benign diagnostic mixed in must still surface.
+    let config = make_codex_config(OutputFormat::StreamJsonl);
+    let mut normalizer = crate::codex::CodexNormalizer::new(&config);
+
+    let events = normalizer.finalize(Some(1), "connection failed\n");
+
+    assert!(matches!(
+        events.as_slice(),
+        [AgentEventPayload::Error { message, recoverable }]
+            if message == "connection failed" && !recoverable
+    ));
+}
+
+#[test]
+fn codex_ignores_reworded_stdin_diagnostic() {
+    // The whole reason for the prefix match: codex has already reworded or
+    // appended to this line once before (the ASCII -> Unicode ellipsis
+    // swap), and under the old exact-match array a change like this would
+    // have silently resurrected the red error notification. This is the
+    // regression guard for that failure mode.
+    let config = make_codex_config(OutputFormat::StreamJsonl);
+    let mut normalizer = crate::codex::CodexNormalizer::new(&config);
+
+    let events = normalizer.finalize(Some(0), "Reading additional input from stdin (waiting)...\n");
+
+    assert!(events.is_empty());
+}
+
+#[test]
+fn codex_prefix_filter_also_suppresses_text_appended_to_the_benign_line() {
+    // Documents the accepted trade-off called out in the doc comment on
+    // BENIGN_STDIN_DIAGNOSTIC_PREFIX: a prefix match suppresses whatever
+    // codex appends after the known-benign prefix, even unrelated text. This
+    // test exists to make that trade-off visible and deliberate, not an
+    // accidental side effect discovered later.
+    let config = make_codex_config(OutputFormat::StreamJsonl);
+    let mut normalizer = crate::codex::CodexNormalizer::new(&config);
+
+    let events = normalizer.finalize(
+        Some(0),
+        "Reading additional input from stdin -- unrelated trailing diagnostic text\n",
+    );
+
+    assert!(events.is_empty());
+}
+
+#[test]
+fn codex_stderr_containing_benign_phrase_mid_line_is_not_suppressed() {
+    // The filter is a prefix match, not a substring match: a line that
+    // merely contains the benign phrase somewhere other than the start must
+    // still surface as a real error.
+    let config = make_codex_config(OutputFormat::StreamJsonl);
+    let mut normalizer = crate::codex::CodexNormalizer::new(&config);
+
+    let events = normalizer.finalize(
+        Some(1),
+        "error: Reading additional input from stdin failed unexpectedly\n",
+    );
+
+    assert!(matches!(
+        events.as_slice(),
+        [AgentEventPayload::Error { message, recoverable }]
+            if message == "error: Reading additional input from stdin failed unexpectedly" && !recoverable
+    ));
+}
+
+#[test]
 fn codex_extracts_thread_id_as_session_id() {
     let config = make_codex_config(OutputFormat::StreamJsonl);
     let mut normalizer = crate::codex::CodexNormalizer::new(&config);
@@ -1348,6 +1429,95 @@ fn codex_failed_mcp_tool_call_is_an_error() {
         matches!(&events[..], [AgentEventPayload::ToolCallCompleted { output: Some(output), is_error, .. }]
         if output.contains("target unavailable") && *is_error)
     );
+}
+
+#[test]
+fn codex_mcp_null_error_alongside_real_result_is_not_an_error() {
+    // Regression test: most JSON emitters write `"error": null` rather than
+    // omitting the key. `.get("error").is_some()` fired on that null and
+    // reported a successful call as a failure.
+    let config = make_codex_config(OutputFormat::StreamJsonl);
+    let mut normalizer = crate::codex::CodexNormalizer::new(&config);
+
+    let events = normalizer.process_chunk(
+        "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_10\",\"type\":\"mcp_tool_call\",\"server\":\"launchpad\",\"tool\":\"Delegate\",\"status\":\"completed\",\"result\":\"All good\",\"error\":null}}\n",
+    );
+
+    assert!(matches!(
+        &events[..],
+        [AgentEventPayload::ToolCallCompleted { output: Some(output), is_error, .. }]
+            if output == "All good" && !is_error
+    ));
+}
+
+#[test]
+fn codex_mcp_null_result_with_real_error_surfaces_error_not_literal_null() {
+    // Regression test: `.get("result").or_else(|| .get("error"))` matched the
+    // null `result`, short-circuited the fallback, and rendered the literal
+    // string "null" while discarding the real error.
+    let config = make_codex_config(OutputFormat::StreamJsonl);
+    let mut normalizer = crate::codex::CodexNormalizer::new(&config);
+
+    let events = normalizer.process_chunk(
+        "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_11\",\"type\":\"mcp_tool_call\",\"server\":\"launchpad\",\"tool\":\"Delegate\",\"status\":\"failed\",\"result\":null,\"error\":{\"code\":-32000,\"message\":\"target unavailable\"}}}\n",
+    );
+
+    assert!(matches!(
+        &events[..],
+        [AgentEventPayload::ToolCallCompleted { output: Some(output), is_error, .. }]
+            if *is_error
+                && output != "null"
+                && output.contains("target unavailable")
+    ));
+}
+
+#[test]
+fn codex_mcp_no_error_key_with_result_is_not_an_error() {
+    // Guards against over-correcting: an absent error key (the common
+    // success case) must not be treated as failure.
+    let config = make_codex_config(OutputFormat::StreamJsonl);
+    let mut normalizer = crate::codex::CodexNormalizer::new(&config);
+
+    let events = normalizer.process_chunk(
+        "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_12\",\"type\":\"mcp_tool_call\",\"server\":\"launchpad\",\"tool\":\"Delegate\",\"status\":\"completed\",\"result\":\"ok\"}}\n",
+    );
+
+    assert!(matches!(
+        &events[..],
+        [AgentEventPayload::ToolCallCompleted { is_error, .. }] if !is_error
+    ));
+}
+
+#[test]
+fn codex_mcp_status_failed_with_no_error_key_is_still_an_error() {
+    // Proves the `|| item.get("status")... == Some("failed")` branch still
+    // fires on its own — the non_null change must not have broken it.
+    let config = make_codex_config(OutputFormat::StreamJsonl);
+    let mut normalizer = crate::codex::CodexNormalizer::new(&config);
+
+    let events = normalizer.process_chunk(
+        "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_13\",\"type\":\"mcp_tool_call\",\"server\":\"launchpad\",\"tool\":\"Delegate\",\"status\":\"failed\",\"result\":\"partial\"}}\n",
+    );
+
+    assert!(matches!(
+        &events[..],
+        [AgentEventPayload::ToolCallCompleted { is_error, .. }] if *is_error
+    ));
+}
+
+#[test]
+fn codex_mcp_absent_result_and_error_yields_none_output_not_literal_null() {
+    let config = make_codex_config(OutputFormat::StreamJsonl);
+    let mut normalizer = crate::codex::CodexNormalizer::new(&config);
+
+    let events = normalizer.process_chunk(
+        "{\"type\":\"item.completed\",\"item\":{\"id\":\"item_14\",\"type\":\"mcp_tool_call\",\"server\":\"launchpad\",\"tool\":\"Delegate\",\"status\":\"completed\"}}\n",
+    );
+
+    assert!(matches!(
+        &events[..],
+        [AgentEventPayload::ToolCallCompleted { output: None, is_error, .. }] if !is_error
+    ));
 }
 
 #[test]

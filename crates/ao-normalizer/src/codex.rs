@@ -8,15 +8,40 @@ use tracing::info;
 
 use crate::traits::OutputNormalizer;
 
-const BENIGN_STDIN_DIAGNOSTICS: [&str; 2] = [
-    "Reading additional input from stdin...",
-    "Reading additional input from stdin…",
-];
+/// Progress chatter `codex exec` writes to stderr when it is waiting on piped
+/// input. It is not a failure, but because it lands on stderr the normalizer
+/// used to surface it as an `Error` event — the user saw a red "Reading
+/// additional input from stdin..." notification on every codex run and read it
+/// as a crash.
+///
+/// We match on a PREFIX rather than the exact line because codex has already
+/// changed this string once (ASCII `...` swapped for a Unicode ellipsis
+/// between releases), which silently resurrected the red error notification
+/// until someone noticed. An exact whole-line match is a known
+/// silent-regression channel: any future rewording breaks it again with no
+/// compile-time or test signal. The accepted trade-off is that anything codex
+/// appends to the line after this prefix is also suppressed.
+///
+/// This suppression is codex-only ON PURPOSE — it is not a half-finished
+/// migration to the other backends. Claude, cursor-agent, and agy do not emit
+/// this line, so there is nothing for them to filter, and adding a blanket
+/// stderr filter to a backend with no known-benign strings would only create a
+/// channel for real errors to go silent.
+const BENIGN_STDIN_DIAGNOSTIC_PREFIX: &str = "Reading additional input from stdin";
+
+/// `serde_json`'s `get` returns `Some(Value::Null)` for a field that is present
+/// but null, and most JSON emitters write `"field": null` rather than omitting
+/// the key. Any presence test written as `.get(x).is_some()` therefore fires on
+/// a null. Route every presence/fallback check through this so an explicit null
+/// is treated as absent.
+fn non_null(value: Option<&Value>) -> Option<&Value> {
+    value.filter(|v| !v.is_null())
+}
 
 fn actionable_stderr(stderr: &str) -> Option<String> {
     let lines: Vec<_> = stderr
         .lines()
-        .filter(|line| !BENIGN_STDIN_DIAGNOSTICS.contains(&line.trim()))
+        .filter(|line| !line.trim().starts_with(BENIGN_STDIN_DIAGNOSTIC_PREFIX))
         .collect();
 
     (!lines.is_empty()).then(|| lines.join("\n"))
@@ -149,13 +174,17 @@ impl CodexNormalizer {
                                 .get("tool")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("unknown");
-                            let output =
-                                item.get("result")
-                                    .or_else(|| item.get("error"))
-                                    .map(|value| match value {
-                                        Value::String(text) => text.clone(),
-                                        other => other.to_string(),
-                                    });
+                            // `non_null` matters on both arms: a failed call
+                            // sends `{"result": null, "error": {...}}`, and a
+                            // plain `.get("result")` would match the null,
+                            // short-circuit the `or_else`, and render the
+                            // literal string "null" while discarding the error.
+                            let output = non_null(item.get("result"))
+                                .or_else(|| non_null(item.get("error")))
+                                .map(|value| match value {
+                                    Value::String(text) => text.clone(),
+                                    other => other.to_string(),
+                                });
                             if let Some(counter) = &self.tools_in_flight {
                                 let _ = counter.fetch_update(
                                     Ordering::Relaxed,
@@ -170,7 +199,7 @@ impl CodexNormalizer {
                                     .get("id")
                                     .and_then(|v| v.as_str())
                                     .map(str::to_string),
-                                is_error: item.get("error").is_some()
+                                is_error: non_null(item.get("error")).is_some()
                                     || item.get("status").and_then(|v| v.as_str())
                                         == Some("failed"),
                             });
