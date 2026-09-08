@@ -83,12 +83,13 @@ impl ClaudeNormalizer {
             Err(_) => return vec![],
         };
 
-        let event_type = value
-            .get("type")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let event_type = value.get("type").and_then(|v| v.as_str()).unwrap_or("");
 
-        debug!("[normalizer] stream event type={:?}, line_len={}", event_type, trimmed.len());
+        debug!(
+            "[normalizer] stream event type={:?}, line_len={}",
+            event_type,
+            trimmed.len()
+        );
 
         self.process_event(event_type, &value)
     }
@@ -103,18 +104,19 @@ impl ClaudeNormalizer {
                 // Unwrap the inner event and process it recursively.
                 // Format: {"type":"stream_event","event":{"type":"content_block_delta",...}}
                 if let Some(inner) = value.get("event") {
-                    let inner_type = inner
-                        .get("type")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
-                    debug!("[normalizer] unwrapped stream_event -> inner type={:?}", inner_type);
+                    let inner_type = inner.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                    debug!(
+                        "[normalizer] unwrapped stream_event -> inner type={:?}",
+                        inner_type
+                    );
                     events.extend(self.process_event(inner_type, inner));
                 }
             }
             "system" => {
                 // Claude CLI init event — extract session_id
                 if self.session_id.is_none() {
-                    self.session_id = helpers::extract_session_id_from_value(value, &self.session_id_fields);
+                    self.session_id =
+                        helpers::extract_session_id_from_value(value, &self.session_id_fields);
                 }
             }
             "user" => {
@@ -156,10 +158,15 @@ impl ClaudeNormalizer {
                         // multi-block result) — handle both shapes.
                         let output = match item.get("content") {
                             Some(Value::String(s)) => Some(s.clone()),
-                            Some(Value::Array(_)) => helpers::extract_content_texts(item.get("content")),
+                            Some(Value::Array(_)) => {
+                                helpers::extract_content_texts(item.get("content"))
+                            }
                             _ => None,
                         };
-                        let is_error = item.get("is_error").and_then(Value::as_bool).unwrap_or(false);
+                        let is_error = item
+                            .get("is_error")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false);
                         info!(
                             target: "ao_normalizer",
                             "[tool_result] {} output_len={}",
@@ -170,11 +177,14 @@ impl ClaudeNormalizer {
                             // Guard against underflow if increment/decrement
                             // ever get out of sync (e.g. a tool_result with no
                             // prior tool_use block).
-                            let _ = counter.fetch_update(
-                                Ordering::Relaxed,
-                                Ordering::Relaxed,
-                                |v| if v == 0 { None } else { Some(v - 1) },
-                            );
+                            let _ =
+                                counter.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |v| {
+                                    if v == 0 {
+                                        None
+                                    } else {
+                                        Some(v - 1)
+                                    }
+                                });
                         }
                         events.push(AgentEventPayload::ToolCallCompleted {
                             tool_name,
@@ -191,10 +201,7 @@ impl ClaudeNormalizer {
             }
             "content_block_delta" => {
                 if let Some(delta) = value.get("delta") {
-                    let delta_type = delta
-                        .get("type")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
+                    let delta_type = delta.get("type").and_then(|v| v.as_str()).unwrap_or("");
                     // Diagnostic: log every delta variant we see so we can tell
                     // whether the upstream API is producing thinking_delta /
                     // signature_delta events at all. The TRACE level is on by
@@ -330,7 +337,10 @@ impl ClaudeNormalizer {
                         // back later (as a top-level `"user"` event — see
                         // below) can be reported under the real tool name
                         // instead of its opaque id.
-                        let block_id = content_block.get("id").and_then(|v| v.as_str()).map(str::to_string);
+                        let block_id = content_block
+                            .get("id")
+                            .and_then(|v| v.as_str())
+                            .map(str::to_string);
                         if let Some(id) = &block_id {
                             self.tool_names_by_id.insert(id.clone(), tool_name.clone());
                         }
@@ -372,15 +382,16 @@ impl ClaudeNormalizer {
                         if !self.has_text_deltas_for_turn {
                             // No deltas were received for this turn — emit text from the assistant event
                             self.buffer.push_str(&text);
-                            events.push(AgentEventPayload::TextDelta {
-                                text,
-                            });
+                            events.push(AgentEventPayload::TextDelta { text });
                         }
                         // Reset for the next turn
                         self.has_text_deltas_for_turn = false;
                     }
                     if self.session_id.is_none() {
-                        self.session_id = helpers::extract_session_id_from_value(message, &self.session_id_fields);
+                        self.session_id = helpers::extract_session_id_from_value(
+                            message,
+                            &self.session_id_fields,
+                        );
                     }
                     if let Some(usage) = helpers::extract_usage(message) {
                         events.push(usage);
@@ -390,7 +401,8 @@ impl ClaudeNormalizer {
             "result" => {
                 // Final result event — extract text, session_id, and usage
                 if self.session_id.is_none() {
-                    self.session_id = helpers::extract_session_id_from_value(value, &self.session_id_fields);
+                    self.session_id =
+                        helpers::extract_session_id_from_value(value, &self.session_id_fields);
                 }
                 if let Some(text) = helpers::collect_text(value) {
                     // Only emit if no text was captured from delta or assistant events.
@@ -398,9 +410,7 @@ impl ClaudeNormalizer {
                     // use buffer.is_empty() as the fallback gate.
                     if self.buffer.is_empty() {
                         self.buffer.push_str(&text);
-                        events.push(AgentEventPayload::TextDelta {
-                            text,
-                        });
+                        events.push(AgentEventPayload::TextDelta { text });
                     }
                 }
                 if let Some(usage) = helpers::extract_usage(value) {
@@ -408,10 +418,7 @@ impl ClaudeNormalizer {
                 }
             }
             "thinking" => {
-                let subtype = value
-                    .get("subtype")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let subtype = value.get("subtype").and_then(|v| v.as_str()).unwrap_or("");
                 if subtype == "delta" {
                     if let Some(text) = value.get("text").and_then(|v| v.as_str()) {
                         info!(target: "ao_normalizer", "[thinking] {} chars: {}", text.len(), &text[..text.floor_char_boundary(200)]);
@@ -481,7 +488,11 @@ impl OutputNormalizer for ClaudeNormalizer {
                     events.extend(line_events);
                 }
 
-                debug!("[normalizer] chunk produced {} total events, leftover {} bytes", events.len(), self.line_buffer.len());
+                debug!(
+                    "[normalizer] chunk produced {} total events, leftover {} bytes",
+                    events.len(),
+                    self.line_buffer.len()
+                );
                 events
             }
             _ => {
@@ -508,7 +519,8 @@ impl OutputNormalizer for ClaudeNormalizer {
                 let buffer = std::mem::take(&mut self.buffer);
                 if let Ok(value) = serde_json::from_str::<Value>(&buffer) {
                     if self.session_id.is_none() {
-                        self.session_id = helpers::extract_session_id_from_value(&value, &self.session_id_fields);
+                        self.session_id =
+                            helpers::extract_session_id_from_value(&value, &self.session_id_fields);
                     }
 
                     if let Some(text) = helpers::collect_text(&value) {

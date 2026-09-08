@@ -8,6 +8,45 @@ use tracing::info;
 
 use crate::traits::OutputNormalizer;
 
+/// Progress chatter `codex exec` writes to stderr when it is waiting on piped
+/// input. It is not a failure, but because it lands on stderr the normalizer
+/// used to surface it as an `Error` event — the user saw a red "Reading
+/// additional input from stdin..." notification on every codex run and read it
+/// as a crash.
+///
+/// We match on a PREFIX rather than the exact line because codex has already
+/// changed this string once (ASCII `...` swapped for a Unicode ellipsis
+/// between releases), which silently resurrected the red error notification
+/// until someone noticed. An exact whole-line match is a known
+/// silent-regression channel: any future rewording breaks it again with no
+/// compile-time or test signal. The accepted trade-off is that anything codex
+/// appends to the line after this prefix is also suppressed.
+///
+/// This suppression is codex-only ON PURPOSE — it is not a half-finished
+/// migration to the other backends. Claude, cursor-agent, and agy do not emit
+/// this line, so there is nothing for them to filter, and adding a blanket
+/// stderr filter to a backend with no known-benign strings would only create a
+/// channel for real errors to go silent.
+const BENIGN_STDIN_DIAGNOSTIC_PREFIX: &str = "Reading additional input from stdin";
+
+/// `serde_json`'s `get` returns `Some(Value::Null)` for a field that is present
+/// but null, and most JSON emitters write `"field": null` rather than omitting
+/// the key. Any presence test written as `.get(x).is_some()` therefore fires on
+/// a null. Route every presence/fallback check through this so an explicit null
+/// is treated as absent.
+fn non_null(value: Option<&Value>) -> Option<&Value> {
+    value.filter(|v| !v.is_null())
+}
+
+fn actionable_stderr(stderr: &str) -> Option<String> {
+    let lines: Vec<_> = stderr
+        .lines()
+        .filter(|line| !line.trim().starts_with(BENIGN_STDIN_DIAGNOSTIC_PREFIX))
+        .collect();
+
+    (!lines.is_empty()).then(|| lines.join("\n"))
+}
+
 /// Normalizer for OpenAI Codex CLI (`codex exec`) output.
 /// Handles both Text (plain passthrough) and StreamJsonl (JSONL events) output formats.
 ///
@@ -25,7 +64,7 @@ pub struct CodexNormalizer {
     session_id: Option<String>,
     /// Shared counter the supervisor watches to pause the idle-output watchdog
     /// while a tool call is in flight. Codex emits `item.started` /
-    /// `item.completed` pairs for `command_execution` items; the CLI's stdout
+    /// `item.completed` pairs for command and MCP tool items; the CLI's stdout
     /// stays silent between those two events while the shell command actually
     /// runs, which is exactly the window the watchdog would otherwise mistake
     /// for a hang.
@@ -55,10 +94,7 @@ impl CodexNormalizer {
             Err(_) => return vec![],
         };
 
-        let event_type = value
-            .get("type")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let event_type = value.get("type").and_then(|v| v.as_str()).unwrap_or("");
 
         let mut events = Vec::new();
 
@@ -71,10 +107,7 @@ impl CodexNormalizer {
             }
             "item.completed" => {
                 if let Some(item) = value.get("item") {
-                    let item_type = item
-                        .get("type")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
+                    let item_type = item.get("type").and_then(|v| v.as_str()).unwrap_or("");
 
                     match item_type {
                         "agent_message" => {
@@ -118,12 +151,57 @@ impl CodexNormalizer {
                                 );
                             }
                             events.push(AgentEventPayload::ToolCallCompleted {
-                                tool_name: command,
+                                tool_name: "Bash".to_string(),
                                 output,
-                                // Codex JSONL items don't carry a stable
-                                // call-correlation id today (see module doc).
-                                tool_use_id: None,
-                                is_error: false,
+                                tool_use_id: item
+                                    .get("id")
+                                    .and_then(|v| v.as_str())
+                                    .map(str::to_string),
+                                is_error: item
+                                    .get("exit_code")
+                                    .and_then(|v| v.as_i64())
+                                    .is_some_and(|code| code != 0)
+                                    || item.get("status").and_then(|v| v.as_str())
+                                        == Some("failed"),
+                            });
+                        }
+                        "mcp_tool_call" => {
+                            let server = item
+                                .get("server")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown");
+                            let tool = item
+                                .get("tool")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown");
+                            // `non_null` matters on both arms: a failed call
+                            // sends `{"result": null, "error": {...}}`, and a
+                            // plain `.get("result")` would match the null,
+                            // short-circuit the `or_else`, and render the
+                            // literal string "null" while discarding the error.
+                            let output = non_null(item.get("result"))
+                                .or_else(|| non_null(item.get("error")))
+                                .map(|value| match value {
+                                    Value::String(text) => text.clone(),
+                                    other => other.to_string(),
+                                });
+                            if let Some(counter) = &self.tools_in_flight {
+                                let _ = counter.fetch_update(
+                                    Ordering::Relaxed,
+                                    Ordering::Relaxed,
+                                    |v| if v == 0 { None } else { Some(v - 1) },
+                                );
+                            }
+                            events.push(AgentEventPayload::ToolCallCompleted {
+                                tool_name: format!("mcp__{server}__{tool}"),
+                                output,
+                                tool_use_id: item
+                                    .get("id")
+                                    .and_then(|v| v.as_str())
+                                    .map(str::to_string),
+                                is_error: non_null(item.get("error")).is_some()
+                                    || item.get("status").and_then(|v| v.as_str())
+                                        == Some("failed"),
                             });
                         }
                         _ => {}
@@ -132,27 +210,45 @@ impl CodexNormalizer {
             }
             "item.started" => {
                 if let Some(item) = value.get("item") {
-                    let item_type = item
-                        .get("type")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
+                    let item_type = item.get("type").and_then(|v| v.as_str()).unwrap_or("");
 
-                    if item_type == "command_execution" {
-                        let command = item
-                            .get("command")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("unknown")
-                            .to_string();
+                    if matches!(item_type, "command_execution" | "mcp_tool_call") {
                         // Hold the watchdog open across the silent shell-exec
                         // window — paired with the decrement in `item.completed`.
                         if let Some(counter) = &self.tools_in_flight {
                             counter.fetch_add(1, Ordering::Relaxed);
                         }
+                        let (tool_name, tool_input) = if item_type == "command_execution" {
+                            let command = item
+                                .get("command")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown");
+                            (
+                                "Bash".to_string(),
+                                Some(serde_json::json!({ "command": command })),
+                            )
+                        } else {
+                            let server = item
+                                .get("server")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown");
+                            let tool = item
+                                .get("tool")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown");
+                            (
+                                format!("mcp__{server}__{tool}"),
+                                item.get("arguments").cloned(),
+                            )
+                        };
                         events.push(AgentEventPayload::ToolCallStarted {
-                            tool_name: command,
-                            tool_input: None,
+                            tool_name,
+                            tool_input,
                             label: None,
-                            tool_use_id: None,
+                            tool_use_id: item
+                                .get("id")
+                                .and_then(|v| v.as_str())
+                                .map(str::to_string),
                         });
                     }
                 }
@@ -268,9 +364,9 @@ impl OutputNormalizer for CodexNormalizer {
             }
         }
 
-        if !stderr.is_empty() {
+        if let Some(stderr) = actionable_stderr(stderr) {
             events.push(AgentEventPayload::Error {
-                message: stderr.to_string(),
+                message: stderr,
                 recoverable: false,
             });
         }

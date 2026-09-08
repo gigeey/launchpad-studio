@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback } from "react";
 import { Plus, Pencil, Trash2, Check, X, GitBranch, MessageSquarePlus, Archive, ArchiveRestore, ChevronRight } from "lucide-react";
+import { MotionConfig } from "framer-motion";
 import { useChatStore } from "../../stores/chatStore";
 import { useDraftStore } from "../../stores/draftStore";
 import { threadDraftKey } from "../../lib/threadNavigation";
@@ -149,6 +150,7 @@ export function ThreadsPanel({ agentId, onSelectThread }: ThreadsPanelProps) {
   );
 
   return (
+    <MotionConfig reducedMotion="never">
     <div className="flex flex-col min-h-0 flex-1">
       {/* Action bar */}
       <div className="flex items-center justify-between px-[16px] py-[10px] border-b border-[var(--border-secondary)] shrink-0">
@@ -405,5 +407,6 @@ export function ThreadsPanel({ agentId, onSelectThread }: ThreadsPanelProps) {
         )}
       </div>
     </div>
+    </MotionConfig>
   );
 }

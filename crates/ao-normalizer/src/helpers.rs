@@ -47,7 +47,10 @@ pub fn extract_content_texts(content: Option<&Value>) -> Option<String> {
 
 /// Extract session ID from a JSON value using the given field names.
 /// Returns the first matching field value found.
-pub fn extract_session_id_from_value(value: &Value, session_id_fields: &[String]) -> Option<String> {
+pub fn extract_session_id_from_value(
+    value: &Value,
+    session_id_fields: &[String],
+) -> Option<String> {
     // Default to "session_id" if no fields configured
     let default_fields = vec!["session_id".to_string()];
     let fields = if session_id_fields.is_empty() {

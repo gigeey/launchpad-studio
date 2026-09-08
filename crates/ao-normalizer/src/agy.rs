@@ -132,10 +132,8 @@ impl AgyNormalizer {
             "result" => {
                 if let Some(result) = value.get("result") {
                     if self.session_id.is_none() {
-                        self.session_id = helpers::extract_session_id_from_value(
-                            result,
-                            &self.session_id_fields,
-                        );
+                        self.session_id =
+                            helpers::extract_session_id_from_value(result, &self.session_id_fields);
                     }
 
                     if let Some(parsed) = parse_agy_result(result) {
@@ -204,7 +202,10 @@ impl AgyNormalizer {
             .and_then(|v| v.as_str())
             .unwrap_or("unknown")
             .to_string();
-        let state = step_update.get("state").and_then(|v| v.as_str()).unwrap_or("");
+        let state = step_update
+            .get("state")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
         let tool_info = step_update.get("tool_info");
 
         match state {
@@ -303,13 +304,32 @@ pub(crate) fn parse_agy_result(value: &Value) -> Option<AgyResult> {
         .unwrap_or("")
         .to_string();
     let usage = value.get("usage").map(|usage| AgyUsage {
-        input_tokens: usage.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
-        output_tokens: usage.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
-        thinking_tokens: usage.get("thinking_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
-        cache_read_tokens: usage.get("cache_read_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
-        total_tokens: usage.get("total_tokens").and_then(|v| v.as_u64()).unwrap_or(0),
+        input_tokens: usage
+            .get("input_tokens")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
+        output_tokens: usage
+            .get("output_tokens")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
+        thinking_tokens: usage
+            .get("thinking_tokens")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
+        cache_read_tokens: usage
+            .get("cache_read_tokens")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
+        total_tokens: usage
+            .get("total_tokens")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
     });
-    Some(AgyResult { response, status, usage })
+    Some(AgyResult {
+        response,
+        status,
+        usage,
+    })
 }
 
 impl OutputNormalizer for AgyNormalizer {

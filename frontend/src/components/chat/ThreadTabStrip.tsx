@@ -13,6 +13,7 @@ import {
   Webhook,
   X,
 } from "lucide-react";
+import { MotionConfig } from "framer-motion";
 import { useShallow } from "zustand/react/shallow";
 import { useChatStore } from "../../stores/chatStore";
 import {
@@ -779,6 +780,7 @@ export function ThreadTabStrip({
   }
 
   return (
+    <MotionConfig reducedMotion="never">
     <div
       role="tablist"
       aria-label="Threads"
@@ -1201,5 +1203,6 @@ export function ThreadTabStrip({
         />
       )}
     </div>
+    </MotionConfig>
   );
 }
