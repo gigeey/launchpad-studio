@@ -1,10 +1,10 @@
-pub mod supervisor;
-pub mod registry;
-pub mod mock;
-pub mod kill_tree;
-pub mod shell;
-pub mod executable;
 pub mod default_supervisor;
+pub mod executable;
+pub mod kill_tree;
+pub mod mock;
+pub mod registry;
+pub mod shell;
+pub mod supervisor;
 
 pub use default_supervisor::shell_path;
 
@@ -204,6 +204,18 @@ mod tests {
 
     use crate::default_supervisor::DefaultProcessSupervisor;
 
+    // Git Bash supplies the same commands on Windows as the Unix test host.
+    fn test_command(command: &str) -> Vec<String> {
+        vec![
+            crate::shell::bash()
+                .expect("test shell must be available")
+                .to_string_lossy()
+                .into_owned(),
+            "-c".to_string(),
+            command.to_string(),
+        ]
+    }
+
     #[tokio::test]
     async fn default_spawn_echo_collects_stdout() {
         let supervisor = DefaultProcessSupervisor::new();
@@ -212,7 +224,7 @@ mod tests {
             run_id: None,
             backend_id: "test".to_string(),
             scope_key: None,
-            argv: vec!["/bin/echo".to_string(), "hello".to_string()],
+            argv: test_command("exec echo hello"),
             cwd: None,
             env: None,
             stdin_data: None,
@@ -245,7 +257,7 @@ mod tests {
             run_id: None,
             backend_id: "test".to_string(),
             scope_key: None,
-            argv: vec!["/bin/sleep".to_string(), "10".to_string()],
+            argv: test_command("exec sleep 10"),
             cwd: None,
             env: None,
             stdin_data: None,
@@ -285,7 +297,7 @@ mod tests {
             run_id: None,
             backend_id: "test".to_string(),
             scope_key: None,
-            argv: vec!["/bin/sleep".to_string(), "60".to_string()],
+            argv: test_command("exec sleep 60"),
             cwd: None,
             env: None,
             stdin_data: None,
@@ -324,7 +336,7 @@ mod tests {
             // Sleeps far longer than `timeout_ms` below; if the deadline
             // loop were still a plain one-shot sleep this would be killed
             // well before it exits naturally.
-            argv: vec!["/bin/sleep".to_string(), "1".to_string()],
+            argv: test_command("exec sleep 1"),
             cwd: None,
             env: None,
             stdin_data: None,
@@ -363,7 +375,7 @@ mod tests {
             run_id: None,
             backend_id: "test".to_string(),
             scope_key: None,
-            argv: vec!["/bin/sleep".to_string(), "60".to_string()],
+            argv: test_command("exec sleep 60"),
             cwd: None,
             env: None,
             stdin_data: None,
@@ -395,7 +407,7 @@ mod tests {
             run_id: Some("run-echo".to_string()),
             backend_id: "test".to_string(),
             scope_key: None,
-            argv: vec!["/bin/echo".to_string(), "quick".to_string()],
+            argv: test_command("exec echo quick"),
             cwd: None,
             env: None,
             stdin_data: None,
@@ -417,6 +429,9 @@ mod tests {
         // But get_record should still show the completed record
         let record = supervisor.get_record("run-echo");
         assert!(record.is_some());
-        assert_eq!(record.unwrap().status, crate::registry::RunStatus::Completed);
+        assert_eq!(
+            record.unwrap().status,
+            crate::registry::RunStatus::Completed
+        );
     }
 }
