@@ -1,8 +1,9 @@
 pub mod supervisor;
 pub mod registry;
 pub mod mock;
-#[cfg(unix)]
 pub mod kill_tree;
+pub mod shell;
+pub mod executable;
 pub mod default_supervisor;
 
 pub use default_supervisor::shell_path;

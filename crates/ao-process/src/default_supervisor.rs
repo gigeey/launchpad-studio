@@ -151,7 +151,17 @@ impl ProcessSupervisor for DefaultProcessSupervisor {
             ));
         }
 
-        let mut cmd = Command::new(&input.argv[0]);
+        #[cfg(windows)]
+        let program = crate::executable::resolve(
+            &input.argv[0],
+            input.env.as_ref()
+                .and_then(|env| env.iter().find(|(key, _)| key.eq_ignore_ascii_case("PATH")))
+                .map(|(_, value)| value.as_str())
+                .unwrap_or(shell_path()).as_ref(),
+        );
+        #[cfg(not(windows))]
+        let program = &input.argv[0];
+        let mut cmd = Command::new(program);
         if input.argv.len() > 1 {
             cmd.args(&input.argv[1..]);
         }

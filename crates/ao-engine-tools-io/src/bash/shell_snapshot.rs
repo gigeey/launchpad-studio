@@ -31,16 +31,22 @@ fn capture() -> Option<PathBuf> {
     // Running with -lic triggers login (-l) and interactive (-i) startup so that
     // ~/.bash_profile and ~/.bashrc are sourced, matching a normal terminal session.
     let dump_script =
-        "declare -f 2>/dev/null; alias 2>/dev/null; printf 'export PATH=%s\\n' \"$PATH\"";
+        "declare -f 2>/dev/null; alias 2>/dev/null; printf 'export PATH=%q\\n' \"$PATH\"";
 
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
-        let result = std::process::Command::new("bash")
-            .args(["-lic", dump_script])
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .output();
+        #[cfg(windows)]
+        let shell = ao_process::shell::bash();
+        #[cfg(not(windows))]
+        let shell: std::io::Result<PathBuf> = Ok(PathBuf::from("bash"));
+        let result = shell.and_then(|shell| {
+            std::process::Command::new(shell)
+                .args(["-lic", dump_script])
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null())
+                .output()
+        });
         let _ = tx.send(result);
     });
 

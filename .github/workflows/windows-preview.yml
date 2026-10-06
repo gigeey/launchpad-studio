@@ -1,0 +1,72 @@
+name: Windows unsigned preview
+
+# Manual preview only; no release publishing or signing credentials.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installer:
+    name: Unsigned NSIS installer (Windows x64)
+    runs-on: windows-2022
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # Hosted Windows runners provide Visual Studio C++ tools and Git Bash.
+      - name: Install Rust MSVC
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          rustup target add x86_64-pc-windows-msvc
+          rustc --version
+          cargo --version
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Test Windows process helpers
+        run: cargo test --locked -p ao-process --lib --target x86_64-pc-windows-msvc
+
+      # Tauri's beforeBuildCommand runs the existing npm run build.
+      # This overlay disables updater artifacts only for this preview.
+      - name: Build unsigned Windows installer
+        working-directory: frontend
+        run: npm run tauri -- build --target x86_64-pc-windows-msvc --bundles nsis --no-sign --config src-tauri/tauri.conf.windows-preview.json -- --locked
+
+      - name: Verify installer is unsigned
+        run: |
+          $installers = @(Get-ChildItem 'target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe')
+          if ($installers.Count -eq 0) { throw 'NSIS installer was not produced' }
+          foreach ($installer in $installers) {
+            $signature = Get-AuthenticodeSignature $installer.FullName
+            if ($signature.Status -ne 'NotSigned') { throw "Unexpected signature status: $($signature.Status)" }
+            Get-FileHash $installer.FullName -Algorithm SHA256
+          }
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: launchpad-studio-windows-x64-unsigned-${{ github.sha }}
+          path: target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14

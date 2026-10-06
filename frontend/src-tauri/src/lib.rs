@@ -243,7 +243,7 @@ fn set_vibrancy(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
 async fn check_cli_available(command: String, version_flag: String) -> Result<bool, String> {
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
-        let result = std::process::Command::new(&command)
+        let result = std::process::Command::new(ao_process::executable::resolve(&command, ao_process::shell_path().as_ref()))
             .arg(&version_flag)
             .env("PATH", ao_process::shell_path())
             .stdout(std::process::Stdio::null())

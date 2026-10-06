@@ -122,7 +122,17 @@ async fn run_one_hook(
         }
     };
 
-    let mut command = Command::new("bash");
+    #[cfg(windows)]
+    let shell = match ao_process::shell::bash() {
+        Ok(shell) => shell,
+        Err(error) => {
+            tracing::warn!(%error, "failed to resolve hook shell");
+            return HookOutcome::Continue;
+        }
+    };
+    #[cfg(not(windows))]
+    let shell = "bash";
+    let mut command = Command::new(shell);
     command
         .arg("-c")
         .arg(&entry.command)

@@ -31,3 +31,16 @@ pub async fn kill_process_tree(pid: u32, grace_ms: u64) {
         debug!(pid, "Process terminated gracefully after SIGTERM");
     }
 }
+
+/// Windows has no SIGTERM for arbitrary console trees. Kill descendants too.
+#[cfg(windows)]
+pub async fn kill_process_tree(pid: u32, _grace_ms: u64) {
+    match tokio::process::Command::new("taskkill.exe")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
+        .output().await
+    {
+        Ok(output) if output.status.success() => debug!(pid, "Terminated process tree"),
+        Ok(output) => warn!(pid, stderr = %String::from_utf8_lossy(&output.stderr), "taskkill failed"),
+        Err(error) => warn!(pid, %error, "Failed to launch taskkill"),
+    }
+}

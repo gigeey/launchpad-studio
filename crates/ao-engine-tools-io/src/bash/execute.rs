@@ -43,9 +43,9 @@ static BASH_ENV_FILE: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
         String::from("set -o pipefail\nshopt -s expand_aliases 2>/dev/null || true\n");
     if let Some(snap) = snapshot_path {
         content.push_str(&format!(
-            "[ -f \"{}\" ] && source \"{}\" 2>/dev/null || true\n",
-            snap.display(),
-            snap.display()
+            "[ -f '{}' ] && source '{}' 2>/dev/null || true\n",
+            ao_process::shell::bash_path(snap),
+            ao_process::shell::bash_path(snap)
         ));
     }
 
@@ -94,7 +94,7 @@ pub fn build_env() -> Vec<(OsString, OsString)> {
                 #[cfg(not(unix))]
                 let denied = denied_prefixes
                     .iter()
-                    .any(|p| k_str.len() >= p.len() && k_str[..p.len()].eq_ignore_ascii_case(p));
+                    .any(|p| k_str.get(..p.len()).is_some_and(|prefix| prefix.eq_ignore_ascii_case(p)));
                 !denied
             } else {
                 true // Non-UTF8 keys are not in the denylist.
@@ -107,7 +107,7 @@ pub fn build_env() -> Vec<(OsString, OsString)> {
         env.retain(|(k, _)| k.to_str() != Some("BASH_ENV"));
         env.push((
             OsString::from("BASH_ENV"),
-            bash_env_path.as_os_str().to_owned(),
+            ao_process::shell::bash_env_path(bash_env_path),
         ));
     }
 
@@ -225,8 +225,9 @@ fn recover_cwd(cwd: PathBuf) -> PathBuf {
 /// directly the capture block will not run and cwd will not be updated for
 /// that invocation.
 fn cwd_capture_wrapper(command: &str) -> String {
+    let pwd = if cfg!(windows) { "pwd -W" } else { "pwd -P" };
     format!(
-        "{command}\n__lp_ec=$?\npwd -P > \"$CWD_CAPTURE_FILE\" 2>/dev/null || true\nexit $__lp_ec"
+        "{command}\n__lp_ec=$?\n{pwd} > \"$CWD_CAPTURE_FILE\" 2>/dev/null || true\nexit $__lp_ec"
     )
 }
 
@@ -278,13 +279,8 @@ pub struct ExecutionOutcome {
 /// (pipefail injection) is reliably read; falls back to `/bin/bash`.
 /// Non-bash values of `$SHELL` (e.g. `/bin/zsh`) are ignored because zsh
 /// does not read BASH_ENV for `shell -c` invocations.
-fn resolve_shell() -> PathBuf {
-    if let Ok(shell) = std::env::var("SHELL") {
-        if shell.contains("bash") {
-            return PathBuf::from(shell);
-        }
-    }
-    PathBuf::from("/bin/bash")
+fn resolve_shell() -> Result<PathBuf, AoError> {
+    ao_process::shell::bash().map_err(|e| AoError::Process(e.to_string()))
 }
 
 /// Send `sig` to the child's process group (Unix only).
@@ -329,6 +325,10 @@ pub(crate) async fn terminate_child(child: &mut tokio::process::Child, grace: Du
     #[cfg(not(unix))]
     {
         let _ = grace; // no grace on Windows
+        #[cfg(windows)]
+        if let Some(pid) = child.id() {
+            ao_process::kill_tree::kill_process_tree(pid, 0).await;
+        }
         let _ = child.kill().await;
         let _ = child.wait().await;
     }
@@ -398,7 +398,7 @@ pub async fn run(
     ctx: &RunnerContext,
     timeout_ms: u64,
 ) -> Result<ExecutionOutcome, AoError> {
-    let shell = resolve_shell();
+    let shell = resolve_shell()?;
 
     // Recover deleted working directory before spawning.
     let start_cwd = {
@@ -416,7 +416,10 @@ pub async fn run(
     let (run_cmd, env) = {
         let mut e = build_env();
         let s = if let Some(p) = capture_file.as_ref().and_then(|f| f.path().to_str()) {
-            e.push((OsString::from("CWD_CAPTURE_FILE"), OsString::from(p)));
+            e.push((
+                OsString::from("CWD_CAPTURE_FILE"),
+                ao_process::shell::bash_env_path(std::path::Path::new(p)),
+            ));
             cwd_capture_wrapper(command)
         } else {
             command.to_string()
@@ -599,7 +602,10 @@ pub async fn run_foreground(
     let (run_cmd, env) = {
         let mut e = build_env();
         let s = if let Some(p) = capture_file.as_ref().and_then(|f| f.path().to_str()) {
-            e.push((OsString::from("CWD_CAPTURE_FILE"), OsString::from(p)));
+            e.push((
+                OsString::from("CWD_CAPTURE_FILE"),
+                ao_process::shell::bash_env_path(std::path::Path::new(p)),
+            ));
             cwd_capture_wrapper(command)
         } else {
             command.to_string()
@@ -607,7 +613,7 @@ pub async fn run_foreground(
         (s, e)
     };
 
-    let shell = resolve_shell();
+    let shell = resolve_shell()?;
     let mut spawn_cmd = Command::new(&shell);
     spawn_cmd
         .args(["-c", &run_cmd])
@@ -808,7 +814,7 @@ pub struct BackgroundSpawnRaw {
 /// processes in this MVP. Stdout/stderr buffers grow unbounded until the child
 /// exits and the pump tasks complete.
 pub fn run_background(command: &str, ctx: &RunnerContext) -> Result<BackgroundSpawn, AoError> {
-    let shell = resolve_shell();
+    let shell = resolve_shell()?;
     let cwd = {
         let raw = ctx.cwd.read().unwrap().clone();
         let recovered = recover_cwd(raw.clone());
@@ -862,7 +868,7 @@ pub fn run_background(command: &str, ctx: &RunnerContext) -> Result<BackgroundSp
 /// low-level primitive used by the `BackgroundCommandRegistry` path; prefer
 /// this over [`run_background`] when you need control over output routing.
 pub fn run_background_raw(command: &str, ctx: &RunnerContext) -> Result<BackgroundSpawnRaw, AoError> {
-    let shell = resolve_shell();
+    let shell = resolve_shell()?;
     let cwd = {
         let raw = ctx.cwd.read().unwrap().clone();
         let recovered = recover_cwd(raw.clone());

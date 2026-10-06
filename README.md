@@ -472,12 +472,15 @@ claims. Here is exactly what CI checks on each, no more and no less:
   never evidence about the Rust build either way. Linux build prerequisites — the Tauri system
   libraries CI installs before it builds — are in
   [guide/DEVELOPING.md](guide/DEVELOPING.md#prerequisites).
-- **Windows — unverified.** No CI job builds or tests on Windows. Treat a Windows build as
-  something that ought to work rather than something that is verified, and please open an issue
-  when it does not.
+- **Windows — experimental preview.** A manual
+  [Windows preview workflow](.github/workflows/windows-preview.yml) builds an unsigned x64 NSIS
+  installer and tests the process helpers. It is not a merge gate; native build and runtime
+  success have not yet been verified. See [Windows preview instructions](guide/WINDOWS-PREVIEW.md)
+  for Git Bash prerequisites and artifact retrieval.
 
 Neither Linux nor Windows has a packaged binary published — see [Get the app](#1-get-the-app) —
-so building from source is the only route on either.
+Linux requires building from source; Windows preview installers can be downloaded from a
+successful manual workflow run.
 
 **The version check can lock a source build out of the app.** If your checkout is far enough
 behind the latest published release, the app replaces its entire UI with an update prompt that

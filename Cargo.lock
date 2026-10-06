@@ -235,6 +235,7 @@ name = "ao-engine-tools-io"
 version = "0.1.0"
 dependencies = [
  "ao-engine-tools-core",
+ "ao-process",
  "ao-protocol",
  "async-trait",
  "base64 0.21.7",
@@ -350,6 +351,7 @@ dependencies = [
  "ao-engine-tools-io",
  "ao-engine-tools-provider-config",
  "ao-persistence",
+ "ao-process",
  "ao-protocol",
  "async-trait",
  "axum",

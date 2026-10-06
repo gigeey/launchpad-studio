@@ -291,7 +291,11 @@ struct McpHandleCore {
 // ── Stdio spawn and handshake ─────────────────────────────────────────────────
 
 async fn spawn_live_session(config: &SpawnConfig) -> Result<LiveSession, McpError> {
-    let mut child = Command::new(&config.command)
+    let search_path = config.env.iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case("PATH"))
+        .map(|(_, value)| std::ffi::OsString::from(value))
+        .unwrap_or_else(|| std::env::var_os("PATH").unwrap_or_default());
+    let mut child = Command::new(ao_process::executable::resolve(&config.command, &search_path))
         .args(&config.args)
         .envs(&config.env)
         .stdin(std::process::Stdio::piped())

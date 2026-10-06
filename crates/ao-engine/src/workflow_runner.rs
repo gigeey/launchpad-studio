@@ -1585,7 +1585,11 @@ impl WorkflowRunner {
         );
 
         // Execute run.sh with env vars, polling _workflow_status.json for progress
-        let mut cmd = tokio::process::Command::new("bash");
+        #[cfg(windows)]
+        let shell = ao_process::shell::bash().map_err(|e| AoError::Process(e.to_string()))?;
+        #[cfg(not(windows))]
+        let shell = "bash";
+        let mut cmd = tokio::process::Command::new(shell);
         cmd.arg("run.sh").current_dir(&phase_dir);
         for (key, val) in &env_vars {
             cmd.env(key, val);

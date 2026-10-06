@@ -5,6 +5,7 @@ edition = "2021"
 license.workspace = true
 
 [dependencies]
+ao-process = { workspace = true }
 ao-engine-tools-core = { workspace = true }
 ao-engine-tools-io = { workspace = true }
 ao-engine-tools-engine = { workspace = true }
